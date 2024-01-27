@@ -113,28 +113,18 @@ st.set_page_config(
 # Main interface
 st.title("YouTube Video Analyzer")
 
-# User input for the selected task
-selected_task = st.selectbox("Select Task", ["Search Video Details", "Sentiment Analysis", "Summary Generation", "Keyword Extraction and Word Cloud", "Abuse and Spam Detection"])
+# Sidebar for user input
+st.sidebar.header("Select Task")
 
-# Description for each task
-task_descriptions = {
-    "Search Video Details": "Search and retrieve details of YouTube videos based on a query.",
-    "Sentiment Analysis": "Analyze the sentiment of comments for a YouTube video.",
-    "Summary Generation": "Generate a summary of the transcript of a YouTube video.",
-    "Keyword Extraction and Word Cloud": "Extract keywords from comments and generate a word cloud.",
-    "Abuse and Spam Detection": "Detect and filter out abusive or spammy comments for a positive user experience."
-}
+task = st.sidebar.selectbox("Task", ["Search Video Details", "Sentiment Analysis", "Summary Generation", "Keyword Extraction and Word Cloud", "Abuse and Spam Detection"])
 
-# Display task description
-st.write(task_descriptions.get(selected_task, ""))
+# Search Video Details Task
+if task == "Search Video Details":
+    st.sidebar.info("Enter the topic to search for videos:")
+    search_query = st.sidebar.text_input("Topic", value="Python Tutorial")
 
-# User input for video ID
-video_id_input = st.text_input("Enter Video ID", value="")
-
-# Main content based on selected task
-if selected_task == "Search Video Details":
-    if st.button("Search"):
-        video_details = search_and_recommend_videos(video_id_input)
+    if st.sidebar.button("Search"):
+        video_details = search_and_recommend_videos(search_query)
         st.subheader("Search Results:")
         if video_details:
             for video in video_details:
@@ -146,58 +136,50 @@ if selected_task == "Search Video Details":
         else:
             st.warning("No videos found.")
 
-elif selected_task == "Sentiment Analysis":
-    if st.button("Analyze Sentiments"):
-        # Get comments for sentiment analysis
-        comments_sentiment = get_video_comments(video_id_input)
+# Other Tasks
+else:
+    # User input for other tasks
+    st.sidebar.header("Task Details")
+    video_id = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
 
-        # Analyze and categorize comments
-        categorized_sentiments = analyze_and_categorize_comments(comments_sentiment)
+    if task == "Sentiment Analysis":
+        st.sidebar.info("Analyze the sentiment of comments for a YouTube video.")
+        if st.sidebar.button("Analyze Sentiments"):
+            comments_sentiment = get_video_comments(video_id)
+            categorized_sentiments = analyze_and_categorize_comments(comments_sentiment)
+            st.subheader("Sentiment Analysis Results")
+            for sentiment, comments in categorized_sentiments.items():
+                st.write(f"**{sentiment} Sentiments:**")
+                for comment in comments:
+                    st.write(comment[0])
+                st.write("---")
 
-        st.subheader("Sentiment Analysis Results")
+    elif task == "Summary Generation":
+        st.sidebar.info("Generate a summary of the transcript of a YouTube video using transformers.")
+        if st.sidebar.button("Generate Summary"):
+            comments_summary = get_video_comments(video_id)
+            st.subheader("Summary Generation Task")
+            st.warning("Summary Generation logic is a placeholder and needs to be implemented.")
 
-        # Display results
-        for sentiment, comments in categorized_sentiments.items():
-            st.write(f"**{sentiment} Sentiments:**")
-            for comment in comments:
-                st.write(comment[0])
-            st.write("---")
+    elif task == "Keyword Extraction and Word Cloud":
+        st.sidebar.info("Extract keywords from comments and generate a word cloud.")
+        if st.sidebar.button("Extract Keywords and Generate Word Cloud"):
+            comments_keywords = get_video_comments(video_id)
+            st.subheader("Keyword Extraction and Word Cloud Generation Task")
+            st.warning("Keyword Extraction and Word Cloud logic are placeholders and need to be implemented.")
 
-elif selected_task == "Summary Generation":
-    if st.button("Generate Summary"):
-        # Get comments for summary generation
-        comments_summary = get_video_comments(video_id_input)
+    elif task == "Abuse and Spam Detection":
+        st.sidebar.info("Implement deep learning models to detect and filter out abusive or spammy comments.")
+        if st.sidebar.button("Detect Abuse and Spam"):
+            comments_abuse_spam = get_video_comments(video_id)
+            st.subheader("Abuse and Spam Detection Task")
+            st.warning("Abuse and Spam Detection logic is a placeholder and needs to be implemented.")
 
-        st.subheader("Summary Generation Task")
-
-        # Placeholder for summary generation logic
-        st.warning("Summary Generation logic is a placeholder and needs to be implemented.")
-
-elif selected_task == "Keyword Extraction and Word Cloud":
-    if st.button("Extract Keywords and Generate Word Cloud"):
-        # Get comments for keyword extraction
-        comments_keywords = get_video_comments(video_id_input)
-
-        st.subheader("Keyword Extraction and Word Cloud Generation Task")
-
-        # Placeholder for keyword extraction and word cloud logic
-        st.warning("Keyword Extraction and Word Cloud logic are placeholders and need to be implemented.")
-
-elif selected_task == "Abuse and Spam Detection":
-    if st.button("Detect Abuse and Spam"):
-        # Get comments for abuse and spam detection
-        comments_abuse_spam = get_video_comments(video_id_input)
-
-        st.subheader("Abuse and Spam Detection Task")
-
-        # Placeholder for abuse and spam detection logic
-        st.warning("Abuse and Spam Detection logic is a placeholder and needs to be implemented.")
-
-# Credits and Connect with Me
+# Set up the layout
 st.title("About")
 st.info(
     "This app allows you to perform various analysis tasks on YouTube videos. "
-    "Select a task from the dropdown menu and follow the instructions."
+    "Select a task from the sidebar to get started."
 )
 
 # Credits
