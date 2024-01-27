@@ -1,9 +1,15 @@
+
+ 
+# Importing necessary libraries and modules
 import joblib
 import streamlit as st
 import googleapiclient.discovery
 from textblob import TextBlob
 import plotly.express as px
 from transformers import pipeline
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from wordcloud import WordCloud
 
 # Set your YouTube Data API key here
 YOUTUBE_API_KEY = "AIzaSyDm2xduRiZ1bsm9T7QjWehmNE95_4WR9KY"
@@ -103,6 +109,30 @@ def analyze_and_categorize_comments(comments):
 
     return categorized_comments
 
+# Placeholder function for summary generation
+def generate_summary(comments):
+    summarizer = pipeline("summarization")
+    concatenated_comments = " ".join(comments)
+    summary = summarizer(concatenated_comments, max_length=150, min_length=50, length_penalty=2.0)[0]['summary']
+    return summary
+
+# Placeholder function for word cloud generation
+def generate_word_cloud(comments):
+    stop_words = set(stopwords.words('english'))
+    words = word_tokenize(" ".join(comments))
+    keywords = [word.lower() for word in words if word.isalnum() and word.lower() not in stop_words]
+
+    # Generating Word Cloud
+    wordcloud = WordCloud(width=800, height=400, background_color='black').generate(" ".join(keywords))
+
+    # Display Word Cloud
+    st.subheader("Word Cloud")
+    st.image(wordcloud.to_image(), caption="Generated Word Cloud", use_container_width=True)
+
+# Placeholder function for abuse and spam detection
+def detect_abuse_and_spam(comments):
+    st.warning("Abuse and Spam Detection logic is a placeholder and needs to be implemented.")
+
 # Streamlit web app
 st.set_page_config(
     page_title="YouTube Video Analyzer",
@@ -110,15 +140,19 @@ st.set_page_config(
     layout="wide"
 )
 
-# Main interface
-st.title("YouTube Video Analyzer")
+# Set up the layout
+st.title("About")
+st.info(
+    "This app allows you to perform various analysis tasks on YouTube videos. "
+    "Select a task from the sidebar to get started."
+)
 
 # Sidebar for user input
 st.sidebar.header("Select Task")
 
-task = st.sidebar.selectbox("Task", ["Search Video Details", "Sentiment Analysis", "Summary Generation", "Keyword Extraction and Word Cloud", "Abuse and Spam Detection"])
-
 # Search Video Details Task
+task = st.sidebar.selectbox("Task", ["Search Video Details", "Sentiment Analysis", "Summary Generation", "Word Cloud", "Abuse and Spam Detection"])
+
 if task == "Search Video Details":
     st.sidebar.info("Enter the topic to search for videos:")
     search_query = st.sidebar.text_input("Topic", value="Python Tutorial")
@@ -159,28 +193,22 @@ else:
         if st.sidebar.button("Generate Summary"):
             comments_summary = get_video_comments(video_id)
             st.subheader("Summary Generation Task")
-            st.warning("Summary Generation logic is a placeholder and needs to be implemented.")
+            generated_summary = generate_summary(comments_summary)
+            st.write(generated_summary)
 
-    elif task == "Keyword Extraction and Word Cloud":
-        st.sidebar.info("Extract keywords from comments and generate a word cloud.")
-        if st.sidebar.button("Extract Keywords and Generate Word Cloud"):
-            comments_keywords = get_video_comments(video_id)
-            st.subheader("Keyword Extraction and Word Cloud Generation Task")
-            st.warning("Keyword Extraction and Word Cloud logic are placeholders and need to be implemented.")
+    elif task == "Word Cloud":
+        st.sidebar.info("Generate a word cloud based on comments.")
+        if st.sidebar.button("Generate Word Cloud"):
+            comments_wordcloud = get_video_comments(video_id)
+            st.subheader("Word Cloud Generation Task")
+            generate_word_cloud(comments_wordcloud)
 
     elif task == "Abuse and Spam Detection":
         st.sidebar.info("Implement deep learning models to detect and filter out abusive or spammy comments.")
         if st.sidebar.button("Detect Abuse and Spam"):
             comments_abuse_spam = get_video_comments(video_id)
             st.subheader("Abuse and Spam Detection Task")
-            st.warning("Abuse and Spam Detection logic is a placeholder and needs to be implemented.")
-
-# Set up the layout
-st.title("About")
-st.info(
-    "This app allows you to perform various analysis tasks on YouTube videos. "
-    "Select a task from the sidebar to get started."
-)
+            detect_abuse_and_spam(comments_abuse_spam)
 
 # Credits
 st.title("Credits")
@@ -194,3 +222,4 @@ st.markdown(
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
     "[GitHub](https://github.com/your-github-profile)"
 )
+
