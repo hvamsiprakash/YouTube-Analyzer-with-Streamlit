@@ -3,11 +3,10 @@ import streamlit as st
 import googleapiclient.discovery
 from textblob import TextBlob
 import plotly.express as px
-from profanity_check import predict
 from transformers import pipeline
 
 # Set your YouTube Data API key here
-YOUTUBE_API_KEY = "AIzaSyDm2xduRiZ1bsm9T7QjWehmNE95_4WR9KY"
+YOUTUBE_API_KEY =  "AIzaSyDm2xduRiZ1bsm9T7QjWehmNE95_4WR9KY"
 
 # Initialize the YouTube Data API client
 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
@@ -89,7 +88,6 @@ def get_video_comments(video_id):
 
 # Placeholder function for sentiment analysis
 def analyze_and_categorize_comments(comments):
-    # Replace this placeholder with your actual sentiment analysis logic
     categorized_comments = {'Positive': [], 'Negative': [], 'Neutral': []}
     for comment in comments:
         analysis = TextBlob(comment)
@@ -112,9 +110,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# Task 1: Search Video Details
 st.title("YouTube Video Analyzer")
-st.sidebar.header("Task 1: Search Video Details")
+
+# Sidebar for user input
+st.sidebar.header("Select Task")
+
+task = st.sidebar.selectbox("Task", ["Search Video Details", "Sentiment Analysis", "Summary Generation", "Keyword Extraction and Word Cloud", "Abuse and Spam Detection"])
 
 search_query = st.sidebar.text_input("Enter the topic of interest", value="Python Tutorial")
 
@@ -125,157 +126,113 @@ if st.sidebar.button("Search"):
         for video in video_details:
             st.write(f"**{video[0]}**")
             st.write(f"<img src='{video[9]}' alt='Thumbnail' style='max-height: 150px;'>", unsafe_allow_html=True)
-            st.write(f"Video ID: {video[1]}")
-            st.write(f"Likes: {video[2]}, Views: {video[3]}, Comments: {video[4]}")
-            st.write(f"Duration: {video[5]}, Upload Date: {video[6]}")
-            st.write(f"Channel: {video[7]}")
-            st.write(f"Watch Video: [Link]({video[8]})")
+            st.write(f"Likes: {video[2]}, Views: {video[3]}, Comments: {video[4]}, Duration: {video[5]}, Upload Date: {video[6]}, Channel: {video[7]}")
+            st.write(f"Watch [video]({video[8]})")
+            st.write("---")
+    else:
+        st.warning("No videos found.")
 
-# Task 2: Sentiment Analysis
-st.sidebar.header("Task 2: Sentiment Analysis")
+# Main content based on selected task
+if task == "Sentiment Analysis":
+    st.sidebar.header("Sentiment Analysis Task")
+    st.sidebar.info(
+        "This task allows you to analyze the sentiment of comments for a YouTube video."
+        " Enter the video ID below and click the button to get sentiment analysis results."
+    )
 
-video_id_sentiment = st.sidebar.text_input("Enter Video ID for Sentiment Analysis", value="YOUR_VIDEO_ID")
+    # User input for sentiment analysis task
+    video_id_sentiment = st.sidebar.text_input("Enter Video ID for Sentiment Analysis", value="YOUR_VIDEO_ID")
 
-if st.sidebar.button("Analyze Sentiment"):
-    comments_sentiment = get_video_comments(video_id_sentiment)
-    st.subheader("Sentiment Analysis")
+    if st.sidebar.button("Analyze Sentiments"):
+        # Get comments for sentiment analysis
+        comments_sentiment = get_video_comments(video_id_sentiment)
 
-    # Check if there are comments before analysis
-    if comments_sentiment:
-        # Use the placeholder function for sentiment analysis
-        categorized_comments_sentiment = analyze_and_categorize_comments(comments_sentiment)
+        # Analyze and categorize comments
+        categorized_sentiments = analyze_and_categorize_comments(comments_sentiment)
 
-        # Display additional metrics
-        st.write(f"Total Comments: {len(comments_sentiment)}")
-        st.write(f"Average Sentiment Polarity: {sum(s[1] for s in categorized_comments_sentiment['Positive'] + categorized_comments_sentiment['Negative']) / len(comments_sentiment)}")
-        st.write(f"Average Sentiment Subjectivity: {sum(s[2] for s in categorized_comments_sentiment['Positive'] + categorized_comments_sentiment['Negative']) / len(comments_sentiment)}")
+        st.subheader("Sentiment Analysis Results")
 
-        # Display sentiment distribution chart
-        sentiment_df = []
-        for sentiment, sentiment_comments in categorized_comments_sentiment.items():
-            sentiment_df.extend([(sentiment, comment[1], comment[2]) for comment in sentiment_comments])
+        # Display results
+        for sentiment, comments in categorized_sentiments.items():
+            st.write(f"**{sentiment} Sentiments:**")
+            for comment in comments:
+                st.write(comment[0])
+            st.write("---")
 
-        sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title='Sentiment Analysis')
-        st.plotly_chart(sentiment_chart)
+elif task == "Summary Generation":
+    st.sidebar.header("Summary Generation Task")
+    st.sidebar.info(
+        "This task allows you to generate a summary of the transcript of a YouTube video using transformers."
+        " Enter the video ID below and click the button to generate a summary."
+    )
 
-        # Display categorized comments
-        for sentiment, sentiment_comments in categorized_comments_sentiment.items():
-            st.subheader(sentiment)
-            for comment in sentiment
+    # User input for summary generation task
+    video_id_summary = st.sidebar.text_input("Enter Video ID for Summary Generation", value="YOUR_VIDEO_ID")
 
-_comments:
-                st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
-                st.write(f"  {comment[0]}")
+    if st.sidebar.button("Generate Summary"):
+        # Get comments for summary generation
+        comments_summary = get_video_comments(video_id_summary)
 
-# Task 3: Named Entity Recognition (NER)
-st.sidebar.header("Task 3: Named Entity Recognition (NER)")
+        st.subheader("Summary Generation Task")
 
-video_id_ner = st.sidebar.text_input("Enter Video ID for NER", value="YOUR_VIDEO_ID")
+        # Placeholder for summary generation logic
+        st.warning("Summary Generation logic is a placeholder and needs to be implemented.")
 
-if st.sidebar.button("Perform NER"):
-    comments_ner = get_video_comments(video_id_ner)
-    st.subheader("Named Entity Recognition (NER)")
+elif task == "Keyword Extraction and Word Cloud":
+    st.sidebar.header("Keyword Extraction and Word Cloud Task")
+    st.sidebar.info(
+        "This task allows you to extract keywords from comments and generate a word cloud."
+        " Enter the video ID below and click the button to perform keyword extraction and generate a word cloud."
+    )
 
-    # Check if there are comments before NER
-    if comments_ner:
-        # Perform Named Entity Recognition (NER) using your NER logic here
+    # User input for keyword extraction task
+    video_id_keywords = st.sidebar.text_input("Enter Video ID for Keyword Extraction", value="YOUR_VIDEO_ID")
 
-        # Display NER results
-        st.write("NER results will be displayed here.")
+    if st.sidebar.button("Extract Keywords and Generate Word Cloud"):
+        # Get comments for keyword extraction
+        comments_keywords = get_video_comments(video_id_keywords)
 
-# Task 4: Summary Generation
-st.sidebar.header("Task 4: Summary Generation")
+        st.subheader("Keyword Extraction and Word Cloud Generation Task")
 
-video_id_summary = st.sidebar.text_input("Enter Video ID for Summary Generation", value="YOUR_VIDEO_ID")
+        # Placeholder for keyword extraction and word cloud logic
+        st.warning("Keyword Extraction and Word Cloud logic are placeholders and need to be implemented.")
 
-if st.sidebar.button("Generate Summary"):
-    comments_summary = get_video_comments(video_id_summary)
-    st.subheader("Summary Generation")
+elif task == "Abuse and Spam Detection":
+    st.sidebar.header("Abuse and Spam Detection Task")
+    st.sidebar.info(
+        "This task implements deep learning models to detect and filter out abusive or spammy comments,"
+        " ensuring a more positive user experience on the platform."
+        " Enter the video ID below and click the button to detect abuse and spam."
+    )
 
-    # Check if there are comments before summary generation
-    if comments_summary:
-        # Perform Summary Generation using transformers pipeline
-        summarization_pipeline = pipeline("summarization")
-        text_for_summary = " ".join(comments_summary)
-        summary = summarization_pipeline(text_for_summary, max_length=150, min_length=50, length_penalty=2.0, num_beams=4)
+    # User input for abuse and spam detection task
+    video_id_abuse_spam = st.sidebar.text_input("Enter Video ID for Abuse and Spam Detection", value="YOUR_VIDEO_ID")
 
-        # Display generated summary
-        st.write(f"**Generated Summary:**")
-        st.write(summary[0]['summary_text'])
+    if st.sidebar.button("Detect Abuse and Spam"):
+        # Get comments for abuse and spam detection
+        comments_abuse_spam = get_video_comments(video_id_abuse_spam)
 
-# Task 5: Abuse and Spam Detection
-st.sidebar.header("Task 5: Abuse and Spam Detection")
+        st.subheader("Abuse and Spam Detection Task")
 
-# Placeholder function for abuse and spam detection
-def detect_abuse_and_spam(comments):
-    # Replace this placeholder with your actual abuse and spam detection logic
-    detected_comments = [comment for comment in comments if predict(comment)]
-    return detected_comments
+        # Placeholder for abuse and spam detection logic
+        st.warning("Abuse and Spam Detection logic is a placeholder and needs to be implemented.")
 
-video_id_abuse_spam = st.sidebar.text_input("Enter Video ID for Abuse and Spam Detection", value="YOUR_VIDEO_ID")
+# Set up the layout
+st.sidebar.title("About")
+st.sidebar.info(
+    "This app allows you to perform various analysis tasks on YouTube videos. "
+    "Select a task from the sidebar to get started."
+)
 
-if st.sidebar.button("Detect Abuse and Spam"):
-    comments_abuse_spam = get_video_comments(video_id_abuse_spam)
-    st.subheader("Abuse and Spam Detection")
+# Credits
+st.sidebar.title("Credits")
+st.sidebar.info(
+    "This Streamlit app was created by [Your Name]. You can find the source code on [GitHub Repo Link]."
+)
 
-    # Check if there are comments before abuse and spam detection
-    if comments_abuse_spam:
-        # Use the placeholder function for abuse and spam detection
-        detected_comments_abuse_spam = detect_abuse_and_spam(comments_abuse_spam)
-
-        # Display detected abusive and spammy comments
-        st.write(f"Detected Abusive and Spammy Comments:")
-        for comment in detected_comments_abuse_spam:
-            st.write(f"- {comment}")
-
-# Task 6: Word Cloud Generation
-st.sidebar.header("Task 6: Word Cloud Generation")
-
-video_id_wordcloud = st.sidebar.text_input("Enter Video ID for Word Cloud Generation", value="YOUR_VIDEO_ID")
-
-if st.sidebar.button("Generate Word Cloud"):
-    comments_wordcloud = get_video_comments(video_id_wordcloud)
-    st.subheader("Word Cloud Generation")
-
-    # Check if there are comments before word cloud generation
-    if comments_wordcloud:
-        # Perform Word Cloud Generation using your logic here
-
-        # Display generated word cloud
-        st.write("Word cloud will be displayed here.")
-
-# Sidebar: User Options for Sentiment Analysis
-st.sidebar.header("User Options for Sentiment Analysis")
-
-# Placeholder function for displaying user options
-def display_user_options():
-    # Replace this placeholder with your actual logic for user options
-    pass
-
-display_user_options()
-
-# Sidebar: Python Dependencies
-st.sidebar.header("Python Dependencies")
-
-# Displaying Python dependencies
-st.sidebar.code("""
-google-api-python-client==2.24.0
-textblob==0.15.3
-wordcloud==1.8.1
-matplotlib==3.5.1
-streamlit==1.10.0
-plotly==5.15.0
-nltk==3.6.6
-langdetect==1.0.9
-scikit-learn==0.24.2
-pandas==1.3.3
-speechrecognition==3.8.1
-moviepy==1.0.3
-transformers==4.10.3
-profanity-check==1.0.3
-torch==1.10.1
-""")
-
-# Run the app
-if __name__ == "__main__":
-    st.run_app()
+# Footer
+st.sidebar.title("Connect with Me")
+st.sidebar.markdown(
+    "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
+    "[GitHub](https://github.com/your-github-profile)"
+)
