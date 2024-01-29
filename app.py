@@ -1,11 +1,8 @@
 # Importing necessary libraries and modules
 import streamlit as st
 import googleapiclient.discovery
-import pandas as pd
-import plotly.express as px
 from wordcloud import WordCloud
 from textblob import TextBlob
-from PIL import Image
 
 # Set your YouTube Data API key here
 YOUTUBE_API_KEY = "AIzaSyDuuUZbI7ToC7iuweYJ1MiNXAS83Goj_Cc"
@@ -141,7 +138,7 @@ st.title("YouTube Analyzer")
 st.sidebar.header("Select Task")
 
 # Task 1: Channel Analytics with Thumbnails and Advanced Charts
-if st.sidebar.button("Channel Analytics"):
+if st.sidebar.checkbox("Channel Analytics"):
     st.sidebar.subheader("Channel Analytics")
     channel_id_analytics = st.sidebar.text_input("Enter Channel ID", value="YOUR_CHANNEL_ID")
 
@@ -160,7 +157,7 @@ if st.sidebar.button("Channel Analytics"):
         st.write(f"**Total Comments:** {total_comments}")
 
 # Task 2: Video Recommendation based on User's Topic of Interest
-if st.sidebar.button("Video Recommendation"):
+if st.sidebar.checkbox("Video Recommendation"):
     st.sidebar.subheader("Video Recommendation")
     topic_interest = st.sidebar.text_input("Enter Topic of Interest", value="Python Tutorial")
 
@@ -177,7 +174,7 @@ if st.sidebar.button("Video Recommendation"):
             st.write("---")
 
 # Task 3: Sentimental Analysis of Comments with Visualization and Word Cloud
-if st.sidebar.button("Sentimental Analysis"):
+if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
     video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
 
