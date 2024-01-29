@@ -237,23 +237,11 @@ if st.sidebar.button("Sentiment Analysis"):
         else:
             st.warning("No comments available for sentiment analysis.")
 
-# Contact Information
-st.sidebar.markdown("---")
-st.sidebar.subheader("Connect with Me")
-st.sidebar.text("Feel free to reach out if you have any questions or suggestions!")
-st.sidebar.text("Your Name")
-user_name = st.sidebar.text_input("Your Name")
-st.sidebar.text("Your Email")
-user_email = st.sidebar.text_input("Your Email")
-st.sidebar.button("Connect")
 
 
 
-# Copyright and Disclaimer
-st.sidebar.markdown("---")
-st.sidebar.subheader("Copyright & Disclaimer")
-st.sidebar.text("© 2024 YouTube Analyzer. All rights reserved.")
-st.sidebar.text("This app is not affiliated with or endorsed by YouTube.")
+
+
 
 
 # Footer
