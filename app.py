@@ -273,6 +273,6 @@ if st.sidebar.checkbox("Sentimental Analysis"):
 # Footer
 st.sidebar.title("Connect with Me")
 st.sidebar.markdown(
-    "[LinkedIn](www.linkedin.com/in/hvamsi) | "
+    "[LinkedIn](https://www.linkedin.com/in/hvamsi/) | "
     "[GitHub](https://github.com/hvamsiprakash)"
 )
