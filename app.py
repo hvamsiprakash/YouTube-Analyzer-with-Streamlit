@@ -1,10 +1,9 @@
-
 # Importing necessary libraries and modules
 import streamlit as st
 import googleapiclient.discovery
 import pandas as pd
 import plotly.express as px
-from wordcloud import WordCloud, STOPWORDS
+from wordcloud import WordCloud
 from textblob import TextBlob
 
 # Set your YouTube Data API key here
@@ -144,63 +143,7 @@ def get_video_comments(video_id):
         st.error(f"Error fetching comments: {e}")
         return []
 
-# Function to generate word cloud from comments
-def generate_word_cloud(comments):
-    try:
-        if not comments:
-            st.warning("No comments to generate a word cloud.")
-            return None
-
-        text = " ".join(comments)
-        wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
-
-        return wordcloud
-    except Exception as e:
-        st.error(f"Error generating word cloud: {e}")
-        return None
-
-# Function to analyze and categorize comments sentiment
-def analyze_and_categorize_comments(comments):
-    try:
-        categorized_comments = {'Positive': 0, 'Neutral': 0, 'Negative': 0}
-
-        for comment in comments:
-            analysis = TextBlob(comment)
-            # Classify the polarity of the comment
-            if analysis.sentiment.polarity > 0:
-                categorized_comments['Positive'] += 1
-            elif analysis.sentiment.polarity == 0:
-                categorized_comments['Neutral'] += 1
-            else:
-                categorized_comments['Negative'] += 1
-
-        return categorized_comments
-    except Exception as e:
-        st.error(f"Error analyzing comments: {e}")
-        return {'Positive': 0, 'Neutral': 0, 'Negative': 0}
-
-# Function to get user-selected comments based on sentiment
-def get_user_selected_comments(comments, comment_type):
-    try:
-        selected_comments = []
-        for comment in comments:
-            analysis = TextBlob(comment)
-            if comment_type == "positive" and analysis.sentiment.polarity > 0:
-                selected_comments.append(comment)
-            elif comment_type == "neutral" and analysis.sentiment.polarity == 0:
-                selected_comments.append(comment)
-            elif comment_type == "negative" and analysis.sentiment.polarity < 0:
-                selected_comments.append(comment)
-
-        return selected_comments
-    except Exception as e:
-        st.error(f"Error filtering user-selected comments: {e}")
-        return []
-
 # Main Streamlit app
-st.set_page_config(page_title="YouTube Analyzer", page_icon=":movie_camera:", layout="wide")
-
-# Main layout
 st.title("YouTube Analyzer")
 
 # Sidebar
@@ -215,110 +158,120 @@ if st.sidebar.checkbox("Channel Analytics"):
     if st.sidebar.button("Get Channel Analytics"):
         channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments, videos_df = get_channel_analytics(channel_id_analytics)
 
-        # Display Channel Overview
-        st.subheader("Channel Overview")
-        st.write(f"**Channel Title:** {channel_title}")
-        st.write(f"**Description:** {description}")
-        st.write(f"**Published At:** {published_at}")
-        st.write(f"**Country:** {country}")
-        st.write(f"**Total Videos:** {total_videos}")
-        st.write(f"**Total Views:** {total_views}")
-        st.write(f"**Total Likes:** {total_likes}")
-        st.write(f"**Total Comments:** {total_comments}")
+        if channel_title:
+            # Display Channel Analytics
+            st.header("Channel Analytics")
+            st.subheader(f"Channel: {channel_title}")
+            st.write(f"Description: {description}")
+            st.write(f"Published At: {published_at}")
+            st.write(f"Country: {country}")
+            st.write(f"Total Videos: {total_videos}")
+            st.write(f"Total Views: {total_views}")
+            st.write(f"Total Likes: {total_likes}")
+            st.write(f"Total Comments: {total_comments}")
 
-        # Advanced Charts for Channel Analytics
-        st.subheader("Advanced Analytics Charts")
+            # Display all video details in a dataframe
+            st.subheader("All Video Details")
+            st.dataframe(videos_df.style.format({'URL': '<a href="{}" target="_blank">Link</a>'}, escape=False), unsafe_allow_html=True)
 
-        # Time Series Chart for Views
-        fig_views = px.line(videos_df, x="Title", y="Views", title="Time Series Chart for Views")
-        fig_views.update_layout(height=400, width=800)
-        st.plotly_chart(fig_views)
+# Task 2: Sentimental Analysis
+if st.sidebar.checkbox("Sentimental Analysis"):
+    st.sidebar.subheader("Sentimental Analysis")
+    video_id_sentiment = st.sidebar.text_input("Enter Video ID for Sentimental Analysis", value="QouN2F_gDmM")
 
-        # Bar Chart for Likes and Comments
-        fig_likes_comments = px.bar(videos_df, x="Title", y=["Likes", "Comments"],
-                                    title="Bar Chart for Likes and Comments", barmode="group")
-        fig_likes_comments.update_layout(height=400, width=800)
-        st.plotly_chart(fig_likes_comments)
+    if st.sidebar.button("Get Sentimental Analysis"):
+        comments_sentiment = get_video_comments(video_id_sentiment)
 
-        # Additional: Display DataFrame of video details with clickable URLs
-        st.subheader("All Video Details")
-        videos_df['URL'] = videos_df['URL'].apply(lambda x: f'<a href="{x}" target="_blank">Link</a>')
-        st.dataframe(videos_df.style.format({'URL': '<a href="{}" target="_blank">Link</a>'}, escape=False), unsafe_allow_html=True)
+        if comments_sentiment:
+            # Display Sentimental Analysis
+            st.header("Sentimental Analysis")
+            st.subheader(f"Video ID: {video_id_sentiment}")
 
-# Task 2: Video Recommendation based on User's Topic of Interest
-if st.sidebar.checkbox("Video Recommendation"):
-    st.sidebar.subheader("Video Recommendation")
-    topic_interest = st.sidebar.text_input("Enter Topic of Interest", value="Python Tutorial")
+            # Perform sentiment analysis on comments
+            sentiments = [TextBlob(comment).sentiment.polarity for comment in comments_sentiment]
+
+            # Plot sentiment distribution
+            st.subheader("Sentiment Distribution of Comments")
+            fig_polarity = px.bar(x=['Negative', 'Neutral', 'Positive'], y=[len([s for s in sentiments if s < 0]),
+                                                                         len([s for s in sentiments if s == 0]),
+                                                                         len([s for s in sentiments if s > 0])],
+                                  labels={'x': 'Sentiment', 'y': 'Count'}, text=[f'{round((len([s for s in sentiments if s < 0]) / len(sentiments)) * 100, 2)}%',
+                                                                             f'{round((len([s for s in sentiments if s == 0]) / len(sentiments)) * 100, 2)}%',
+                                                                             f'{round((len([s for s in sentiments if s > 0]) / len(sentiments)) * 100, 2)}%'],
+                                  title='Sentiment Distribution of Comments', color_discrete_sequence=['red', 'gray', 'green'])
+            fig_polarity.update_traces(textposition='outside')
+            st.plotly_chart(fig_polarity)
+
+# Task 3: Video Recommendations
+if st.sidebar.checkbox("Video Recommendations"):
+    st.sidebar.subheader("Video Recommendations")
+    topic_interest = st.sidebar.text_input("Enter Topic of Interest", "Python Programming")
 
     if st.sidebar.button("Get Video Recommendations"):
         video_recommendations = get_video_recommendations(topic_interest, max_results=5)
 
-        # Display Video Recommendations
-        st.subheader("Video Recommendations")
-        for video in video_recommendations:
-            st.write(f"**Title:** {video[0]}")
-            st.write(f"**Views:** {video[1]}, **Likes:** {video[2]}, **URL:** {video[3]}")
-            thumbnail_url = f"https://img.youtube.com/vi/{video[3].split('=')[1]}/default.jpg"
-            st.image(thumbnail_url, caption=f"Video URL: {video[3]}", use_container_width=True)
-            st.write("---")
+        if video_recommendations:
+            # Display Video Recommendations
+            st.header("Video Recommendations")
+            st.subheader(f"Top 5 Videos on {topic_interest}")
 
-# Task 3: Sentimental Analysis of Comments with Visualization and Word Cloud
+            for video in video_recommendations:
+                st.subheader(video[0])
+                st.write(f"Views: {video[1]} | Likes: {video[2]}")
+                st.write(f"Video URL: {video[3]}")
+
+
+# Task 4: Connect With Me
+st.sidebar.subheader("Connect With Me")
+st.sidebar.info("Have feedback or questions? Feel free to connect with me!")
+
+# Main Interface Paragraphs
+st.markdown(
+    """
+    Welcome to YouTube Analyzer! This tool provides insights into YouTube channels, video recommendations, 
+    and sentiment analysis of video comments. Use the sidebar to navigate through different tasks.
+    """
+)
+
+# Task 1: Channel Analytics (Continued)
+if channel_title:
+    # More Advanced Charts for Channel Analytics
+    st.subheader("Advanced Channel Analytics Charts")
+    
+    # Time Series Chart - Views Over Time
+    st.write("Time Series Chart - Views Over Time")
+    time_series_views = px.line(videos_df, x='Published At', y='View Count', title='Views Over Time', labels={'View Count': 'Views'})
+    st.plotly_chart(time_series_views)
+
+    # Additional Advanced Charts...
+
+    # List all videos in a dataframe with clickable URLs
+    st.subheader("All Video Details (Clickable URLs)")
+    st.dataframe(videos_df.style.format({'URL': '<a href="{}" target="_blank">Link</a>'}, escape=False), unsafe_allow_html=True)
+
+# Task 2: Sentimental Analysis (Continued)
 if st.sidebar.checkbox("Sentimental Analysis"):
-    st.sidebar.subheader("Sentimental Analysis")
-    video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
+    # Additional Visualization Charts
+    st.subheader("Additional Sentimental Analysis Charts")
 
-    # User selection for comment type
-    comment_type = st.sidebar.radio(
-        "Select the type of comments to analyze:",
-        options=["All Comments", "Positive Comments", "Neutral Comments", "Negative Comments"]
-    )
+    # Add more charts as per your requirements...
+    # For example, a polarity chart
+    st.write("Polarity Chart")
+    fig_polarity_additional = px.pie(names=['Negative', 'Neutral', 'Positive'], values=[len([s for s in sentiments if s < 0]),
+                                                                                         len([s for s in sentiments if s == 0]),
+                                                                                         len([s for s in sentiments if s > 0])],
+                                    title='Polarity Distribution of Comments', color_discrete_sequence=['red', 'gray', 'green'])
+    st.plotly_chart(fig_polarity_additional)
 
-    # Fetch comments for the selected video
-    video_comments = get_video_comments(video_id_sentiment)
+# Task 3: Video Recommendations (Continued)
+if st.sidebar.checkbox("Video Recommendations"):
+    # Display thumbnails and details for recommended videos
+    st.subheader("Recommended Videos (With Thumbnails)")
 
-    if video_comments:
-        st.subheader("Sentimental Analysis of Comments")
-
-        # Display user-selected comment type
-        st.write(f"**Selected Comment Type:** {comment_type}")
-
-        # Analyze and categorize comments sentiment
-        categorized_comments = analyze_and_categorize_comments(video_comments)
-
-        # Display sentiment distribution
-        st.subheader("Sentiment Distribution of Comments")
-        fig_polarity = px.bar(
-            x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
-            title="Sentiment Distribution of Comments", labels={"x": "Sentiment", "y": "Count"}
-        )
-        fig_polarity.update_layout(height=400, width=800)
-        st.plotly_chart(fig_polarity)
-
-        # User selection for additional visualization charts
-        st.subheader("Additional Visualization Charts")
-
-        if st.checkbox("Display Pie Chart for Sentiment Distribution"):
-            fig_pie = px.pie(
-                values=list(categorized_comments.values()), names=list(categorized_comments.keys()),
-                title="Pie Chart for Sentiment Distribution"
-            )
-            st.plotly_chart(fig_pie)
-
-        # Word Cloud for Comments
-        if st.checkbox("Display Word Cloud for Comments"):
-            wordcloud = generate_word_cloud(video_comments)
-            if wordcloud:
-                st.subheader("Word Cloud for Comments")
-                st.image(wordcloud.to_array(), use_container_width=True)
-
-        # User selection to display specific comment type
-        if comment_type != "All Comments":
-            selected_comments = get_user_selected_comments(video_comments, comment_type.lower())
-
-            st.subheader(f"{comment_type.capitalize()} Comments")
-            st.text_area("Selected Comments", "\n".join(selected_comments), height=200)
-    else:
-        st.warning("No comments available for sentiment analysis.")
+    for video in video_recommendations:
+        thumbnail_url = get_thumbnail_url(video[3])
+        if thumbnail_url:
+            st.image(thumbnail_url, caption=f"Video URL: {video[3]}", use_container_width=True)
 
 # Footer
 st.sidebar.title("Connect with Me")
@@ -326,3 +279,10 @@ st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/hvamsi/) | "
     "[GitHub](https://github.com/hvamsiprakash)"
 )
+
+
+# Run the Streamlit app
+if __name__ == '__main__':
+    main()
+
+
