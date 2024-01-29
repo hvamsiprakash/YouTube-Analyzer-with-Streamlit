@@ -42,7 +42,7 @@ def get_video_recommendations(topic, max_results=5):
         response = youtube.search().list(
             q=topic,
             type="video",
-            part="id,snippet",
+            part="id",
             maxResults=max_results,
             order="relevance"
         ).execute()
@@ -50,18 +50,20 @@ def get_video_recommendations(topic, max_results=5):
         video_details = []
         for item in response.get("items", []):
             video_id = item["id"]["videoId"]
-            title = item["snippet"]["title"]
-            views = item["snippet"]["viewCount"]
-            url = f"https://www.youtube.com/watch?v={video_id}"
 
-            # Use a separate request to get video statistics
+            # Use a separate request to get video details including view count
             video_info = youtube.videos().list(
-                part="statistics",
+                part="snippet,statistics",
                 id=video_id
             ).execute()
 
-            statistics_info = video_info.get("items", [])[0]["statistics"]
-            likes = int(statistics_info.get("likeCount", 0))
+            snippet = video_info.get("items", [])[0]["snippet"]
+            statistics = video_info.get("items", [])[0]["statistics"]
+
+            title = snippet.get("title", "N/A")
+            views = statistics.get("viewCount", 0)
+            likes = statistics.get("likeCount", 0)
+            url = f"https://www.youtube.com/watch?v={video_id}"
 
             video_details.append((title, views, likes, url))
 
