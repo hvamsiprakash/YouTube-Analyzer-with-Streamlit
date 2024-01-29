@@ -5,7 +5,6 @@ import pandas as pd
 import plotly.express as px
 from wordcloud import WordCloud
 from textblob import TextBlob
-import plotly.graph_objects as go
 
 # Set your YouTube Data API key here
 YOUTUBE_API_KEY = "AIzaSyDuuUZbI7ToC7iuweYJ1MiNXAS83Goj_Cc"
