@@ -3,6 +3,7 @@ import streamlit as st
 import googleapiclient.discovery
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from wordcloud import WordCloud
 from textblob import TextBlob
 
@@ -104,35 +105,27 @@ def get_video_recommendations(topic, max_results=5):
 def get_video_comments(video_id):
     try:
         comments = []
-
-        # Check if comments are disabled on the video
-        video_info = youtube.videos().list(
+        results = youtube.commentThreads().list(
             part="snippet",
-            id=video_id
+            videoId=video_id,
+            textFormat="plainText",
+            maxResults=100
         ).execute()
 
-        if "items" in video_info and "comments" in video_info["items"][0]["snippet"]:
-            results = youtube.commentThreads().list(
-                part="snippet",
-                videoId=video_id,
-                textFormat="plainText",
-                maxResults=100
-            ).execute()
-
-            while "items" in results:
-                for item in results["items"]:
-                    comment = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
-                    comments.append(comment)
-                if "nextPageToken" in results:
-                    results = youtube.commentThreads().list(
-                        part="snippet",
-                        videoId=video_id,
-                        textFormat="plainText",
-                        maxResults=100,
-                        pageToken=results["nextPageToken"]
-                    ).execute()
-                else:
-                    break
+        while "items" in results:
+            for item in results["items"]:
+                comment = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
+                comments.append(comment)
+            if "nextPageToken" in results:
+                results = youtube.commentThreads().list(
+                    part="snippet",
+                    videoId=video_id,
+                    textFormat="plainText",
+                    maxResults=100,
+                    pageToken=results["nextPageToken"]
+                ).execute()
+            else:
+                break
 
         return comments
     except googleapiclient.errors.HttpError as e:
@@ -180,13 +173,6 @@ st.set_page_config(
 # Set up the layout
 st.title("YouTube Analyzer")
 
-# Main interface paragraphs for each task
-st.write(
-    "Welcome to YouTube Analyzer! This tool provides insights into YouTube channels, "
-    "video recommendations, and sentiment analysis of video comments. Explore the sidebar "
-    "to analyze channels, discover video recommendations, and understand sentiment trends."
-)
-
 # Sidebar for user input
 st.sidebar.header("Select Task")
 
@@ -209,19 +195,28 @@ if st.sidebar.checkbox("Channel Analytics"):
         st.write(f"**Total Likes:** {total_likes}")
         st.write(f"**Total Comments:** {total_comments}")
 
-        # Advanced Analytics Charts
+        # Advanced Charts for Channel Analytics
         st.subheader("Advanced Analytics Charts")
 
         # Time Series Chart for Views
         fig_views = px.line(videos_df, x="Title", y="Views", title="Time Series Chart for Views")
-        fig_views.update_xaxes(title_text='Videos', tickangle=45, tickmode='array', tickvals=videos_df.index, ticktext=videos_df['Title'])
+        fig_views.update_layout(height=400, width=800)
         st.plotly_chart(fig_views)
 
         # Bar Chart for Likes and Comments
         fig_likes_comments = px.bar(videos_df, x="Title", y=["Likes", "Comments"],
                                     title="Bar Chart for Likes and Comments", barmode="group")
-        fig_likes_comments.update_xaxes(title_text='Videos', tickangle=45, tickmode='array', tickvals=videos_df.index, ticktext=videos_df['Title'])
+        fig_likes_comments.update_layout(height=400, width=800)
         st.plotly_chart(fig_likes_comments)
+
+        # Polarity Chart for Comments
+        fig_polarity = go.Figure(data=[
+            go.Bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
+                   text=list(categorized_comments.values()), textposition='auto',
+                   marker=dict(color=['green', 'red', 'gray']))
+        ])
+        fig_polarity.update_layout(title="Sentiment Distribution of Comments", height=400, width=800)
+        st.plotly_chart(fig_polarity)
 
         # Additional: Display DataFrame of video details with clickable URLs
         st.subheader("All Video Details")
@@ -266,10 +261,12 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         # Analyze and Categorize Comments
         categorized_comments = analyze_and_categorize_comments(comments_sentiment, sentiment_type)
 
-        # Advanced Visualization of Sentiments
+        # Additional: Advanced Visualization of Sentiments
         st.subheader("Sentimental Analysis Results")
         sentiment_fig = px.pie(values=list(categorized_comments.values()), names=list(categorized_comments.keys()), title="Sentiment Distribution")
+        sentiment_fig.update_layout(height=400, width=800)
         st.plotly_chart(sentiment_fig)
+
 
 # Footer
 st.sidebar.title("Connect with Me")
