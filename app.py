@@ -1,4 +1,5 @@
 # Importing necessary libraries and modules
+pip install streamlit --upgrade
 import streamlit as st
 import googleapiclient.discovery
 import pandas as pd
