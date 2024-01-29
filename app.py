@@ -124,6 +124,4 @@ st.markdown(
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
     "[GitHub](https://github.com/your-github-profile)"
 )
-```
 
-In this advanced version, we have added a time series analysis of daily views and a cumulative views plot. The charts are created using Plotly, providing a more interactive and informative visualization of the channel analytics.
