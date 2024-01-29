@@ -1,4 +1,3 @@
-
 # Importing necessary libraries and modules
 import streamlit as st
 import googleapiclient.discovery
@@ -8,7 +7,7 @@ from wordcloud import WordCloud
 from textblob import TextBlob
 
 # Set your YouTube Data API key here
-YOUTUBE_API_KEY = "AIzaSyDuuUZbI7ToC7iuweYJ1MiNXAS83Goj_Cc"
+YOUTUBE_API_KEY =  "AIzaSyDuuUZbI7ToC7iuweYJ1MiNXAS83Goj_Cc"
 
 # Initialize the YouTube Data API client
 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
@@ -78,7 +77,7 @@ def get_all_video_details(channel_id):
         return pd.DataFrame(columns=["Title", "Views", "Likes", "Comments", "URL"])
 
 # Function to get video recommendations based on user's topic
-def get_video_recommendations(topic, max_results=5):
+def get_video_recommendations(topic, max_results=10):
     try:
         response = youtube.search().list(
             q=topic,
@@ -105,9 +104,10 @@ def get_video_recommendations(topic, max_results=5):
             likes = int(statistics_info.get("likeCount", 0))
             comments = int(statistics_info.get("commentCount", 0))
 
-            video_details.append((title, views, likes, comments, url))
+            video_details.append((title, thumbnail_url, views, likes, comments, url))
 
-        return video_details
+        videos_df = pd.DataFrame(video_details, columns=["Title", "Thumbnail", "Views", "Likes", "Comments", "URL"])
+        return videos_df
     except googleapiclient.errors.HttpError as e:
         st.error(f"Error fetching video recommendations: {e}")
         return None
@@ -120,12 +120,25 @@ def get_video_comments(video_id):
             part="snippet",
             videoId=video_id,
             textFormat="plainText",
-            order="relevance"
+            maxResults=100
         ).execute()
 
-        for item in results["items"]:
-            comment = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
-            comments.append(comment)
+        while "items" in results:
+            for item in results["items"]:
+                comment = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
+                comments.append(comment)
+
+            # Get the next set of results
+            if "nextPageToken" in results:
+                results = youtube.commentThreads().list(
+                    part="snippet",
+                    videoId=video_id,
+                    textFormat="plainText",
+                    pageToken=results["nextPageToken"],
+                    maxResults=100
+                ).execute()
+            else:
+                break
 
         return comments
     except googleapiclient.errors.HttpError as e:
@@ -138,72 +151,69 @@ def analyze_and_categorize_comments(comments):
 
     for comment in comments:
         analysis = TextBlob(comment).sentiment.polarity
-        if analysis > 0:
-            categorized_comments["Positive"] += 1
-        elif analysis == 0:
+        if analysis == 0:
             categorized_comments["Neutral"] += 1
+        elif analysis > 0:
+            categorized_comments["Positive"] += 1
         else:
             categorized_comments["Negative"] += 1
 
     return categorized_comments
 
-# Function to generate word cloud
+# Function to generate word cloud from comments
 def generate_word_cloud(comments):
     try:
         text = " ".join(comments)
-        wordcloud = WordCloud(width=800, height=400, random_state=21, max_font_size=110, background_color="white").generate(text)
+        wordcloud = WordCloud(width=800, height=400, random_state=21, max_font_size=110).generate(text)
         return wordcloud
     except Exception as e:
         st.error(f"Error generating word cloud: {e}")
         return None
 
-# Streamlit App
+# Main Streamlit app
 if __name__ == "__main__":
-    # Set Streamlit page configuration
     st.set_page_config(page_title="YouTube Analyzer", page_icon=":movie_camera:", layout="wide")
+    
+    # Sidebar for user input
+    st.sidebar.title("YouTube Channel Analytics")
+    channel_id = st.sidebar.text_input("Enter YouTube Channel ID:")
+    topic_interest = st.sidebar.text_input("Enter a Topic of Interest for Video Recommendations:")
 
-    # Sidebar
-    st.sidebar.title("YouTube Analyzer")
-    st.sidebar.subheader("Enter Channel ID:")
-    channel_id = st.sidebar.text_input("Example: UC4JX40jDee_tINbkjycV4Sg", "UC4JX40jDee_tINbkjycV4Sg")
-
-    # Fetch Channel Analytics
-    channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments, videos_df = get_channel_analytics(channel_id)
-
-    if channel_title is not None:
-        # Display Channel Analytics
+    if st.sidebar.button("Analyze"):
         st.title("YouTube Analyzer")
-        st.header(f"Channel Analytics: {channel_title}")
-        st.write(f"Description: {description}")
-        st.write(f"Published At: {published_at}")
-        st.write(f"Country: {country}")
-        st.subheader("Statistics:")
-        st.write(f"Total Videos: {total_videos}")
-        st.write(f"Total Views: {total_views}")
-        st.write(f"Total Likes: {total_likes}")
-        st.write(f"Total Comments: {total_comments}")
+        st.sidebar.text("Analyzing...")
 
-        # Display All Video Details
+        # Get channel analytics
+        channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments, videos_df = get_channel_analytics(channel_id)
+
+        # Display channel analytics
+        st.subheader("Channel Analytics")
+        st.write(f"**Channel Title:** {channel_title}")
+        st.write(f"**Description:** {description}")
+        st.write(f"**Published At:** {published_at}")
+        st.write(f"**Country:** {country}")
+        st.write(f"**Total Videos:** {total_videos}")
+        st.write(f"**Total Views:** {total_views}")
+        st.write(f"**Total Likes:** {total_likes}")
+        st.write(f"**Total Comments:** {total_comments}")
+
+        # Display all video details
         st.subheader("All Video Details")
-        if not videos_df.empty:
-            st.dataframe(videos_df)
-        else:
-            st.warning("No video details available.")
+        st.dataframe(videos_df.style.format({'URL': '<a href="{}" target="_blank">Link</a>'}, escape=False), unsafe_allow_html=True)
 
-        # Fetch Video Recommendations based on user input
-        st.subheader("Get Video Recommendations")
-        topic_interest = st.text_input("Enter a topic of interest:", "Python programming")
-        if st.button("Get Recommendations"):
-            video_recommendations = get_video_recommendations(topic_interest, max_results=10)
+        # Display video recommendations
+        video_recommendations = get_video_recommendations(topic_interest, max_results=10)
+        if video_recommendations is not None:
+            st.subheader("Video Recommendations")
+            st.dataframe(video_recommendations.style.format({'URL': '<a href="{}" target="_blank">Link</a>'}, escape=False), unsafe_allow_html=True)
 
-            if video_recommendations is not None:
-                st.subheader("Video Recommendations")
-                recommendations_df = pd.DataFrame(video_recommendations, columns=["Title", "Views", "Likes", "Comments", "URL"])
-                st.dataframe(recommendations_df.style.format({'URL': '<a href="{}" target="_blank">Link</a>'}, escape=False), unsafe_allow_html=True)
-            else:
-                st.warning("Failed to fetch video recommendations.")
+        # Generate Word Cloud
+        wordcloud = generate_word_cloud(get_video_comments("EXAMPLE_VIDEO_ID"))
+        if wordcloud is not None:
+            st.subheader("Word Cloud for Comments")
+            st.image(wordcloud.to_image(), use_container_width=True)
 
-        # Bar Chart for Sentiment Analysis
+        # Sentiment Analysis Visualization
         st.subheader("Sentiment Analysis Visualization")
 
         # Bar Chart for Sentiment Analysis
@@ -213,11 +223,6 @@ if __name__ == "__main__":
         fig_polarity.update_layout(height=400, width=800)
         st.plotly_chart(fig_polarity)
 
-        # Generate Word Cloud
-        wordcloud = generate_word_cloud(get_video_comments("EXAMPLE_VIDEO_ID"))
-        if wordcloud is not None:
-            st.subheader("Word Cloud for Comments")
-            st.image(wordcloud.to_image(), use_container_width=True)
 
                 st.image(wordcloud.to_image(), use_container_width=True)
 
