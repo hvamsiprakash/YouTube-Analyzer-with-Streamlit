@@ -316,12 +316,6 @@ if __name__ == "__main__":
 
 
 
-# Footer
-st.sidebar.title("Connect with Me")
-st.sidebar.markdown(
-    "[LinkedIn](https://www.linkedin.com/in/hvamsi/) | "
-    "[GitHub](https://github.com/hvamsiprakash)"
-)
 
 
 
