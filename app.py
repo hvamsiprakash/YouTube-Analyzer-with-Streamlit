@@ -171,19 +171,7 @@ if st.sidebar.button("Channel Analytics"):
             st.image(thumbnail_url, caption=f"Video URL: {video_url}", use_container_width=True)
 
         # Display Advanced Charts
-        st.subheader("Advanced Charts for Latest Videos")
-        video_df = pd.DataFrame(columns=["Title", "Views", "Likes", "Comments", "URL"])
-        for video_id in video_ids_thumbnails:
-            video_title, video_views, video_likes, video_comments, video_url = get_video_details(video_id)
-            video_df = video_df.append({
-                "Title": video_title,
-                "Views": video_views,
-                "Likes": video_likes,
-                "Comments": video_comments,
-                "URL": video_url
-            }, ignore_index=True)
-
-        # Visualization 1: Bar chart for Views, Likes, and Comments
+        st.subheader("Advanced Charts")
         fig_views = px.bar(video_df, x="Title", y="Views", title="Views of Recent Videos")
         fig_likes = px.bar(video_df, x="Title", y="Likes", title="Likes of Recent Videos")
         fig_comments = px.bar(video_df, x="Title", y="Comments", title="Comments of Recent Videos")
