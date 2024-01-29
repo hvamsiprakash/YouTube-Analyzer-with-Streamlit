@@ -77,14 +77,14 @@ def get_all_video_details(channel_id):
         return pd.DataFrame(columns=["Title", "Views", "Likes", "Comments", "URL"])
 
 # Function to get video recommendations based on user's topic
-def get_video_recommendations(topic, max_results=5):
+def get_video_recommendations(channel_id, max_results=10):
     try:
         response = youtube.search().list(
-            q=topic,
+            channelId=channel_id,
             type="video",
             part="id,snippet",
             maxResults=max_results,
-            order="relevance"
+            order="viewCount"  # Fetch videos based on highest views
         ).execute()
 
         video_details = []
@@ -92,18 +92,11 @@ def get_video_recommendations(topic, max_results=5):
             video_id = item["id"]["videoId"]
             title = item["snippet"]["title"]
             views = item["snippet"]["viewCount"]
+            likes = item["snippet"]["likeCount"]
+            comments = item["snippet"]["commentCount"]
             url = f"https://www.youtube.com/watch?v={video_id}"
 
-            # Use a separate request to get video statistics
-            video_info = youtube.videos().list(
-                part="statistics",
-                id=video_id
-            ).execute()
-
-            statistics_info = video_info.get("items", [])[0]["statistics"]
-            likes = int(statistics_info.get("likeCount", 0))
-
-            video_details.append((title, views, likes, url))
+            video_details.append((title, views, likes, comments, url))
 
         return video_details
     except googleapiclient.errors.HttpError as e:
@@ -188,7 +181,7 @@ st.sidebar.subheader("Select a Task")
 # Task 1: Channel Analytics
 if st.sidebar.checkbox("Channel Analytics"):
     st.sidebar.subheader("Channel Analytics")
-    channel_id_analytics = st.sidebar.text_input("Enter Channel ID for Analytics", value="channel_id")
+    channel_id_analytics = st.sidebar.text_input("Enter Channel ID for Analytics")
 
     if st.sidebar.button("Get Channel Analytics"):
         channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments, videos_df = get_channel_analytics(channel_id_analytics)
@@ -226,24 +219,24 @@ if st.sidebar.checkbox("Channel Analytics"):
 # Task 2: Video Recommendation based on User's Topic of Interest
 if st.sidebar.checkbox("Video Recommendation"):
     st.sidebar.subheader("Video Recommendation")
-    topic_interest = st.sidebar.text_input("Enter Topic of Interest", value="Python Tutorial")
+    topic_interest = st.sidebar.text_input("Enter Topic of Interest")
 
     if st.sidebar.button("Get Video Recommendations"):
-        video_recommendations = get_video_recommendations(topic_interest, max_results=5)
+        video_recommendations = get_video_recommendations(channel_id_analytics, max_results=10)
 
         # Display Video Recommendations
         st.subheader("Video Recommendations")
         for video in video_recommendations:
             st.write(f"**Title:** {video[0]}")
-            st.write(f"**Views:** {video[1]}, **Likes:** {video[2]}, **URL:** {video[3]}")
-            thumbnail_url = f"https://img.youtube.com/vi/{video[3].split('=')[1]}/default.jpg"
-            st.image(thumbnail_url, caption=f"Video URL: {video[3]}", use_container_width=True)
+            st.write(f"**Views:** {video[1]}, **Likes:** {video[2]}, **Comments:** {video[3]}")
+            thumbnail_url = f"https://img.youtube.com/vi/{video[4].split('=')[1]}/default.jpg"
+            st.image(thumbnail_url, caption=f"Video URL: {video[4]}", use_container_width=True)
             st.write("---")
 
 # Task 3: Sentimental Analysis of Comments with Visualization and Word Cloud
 if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
-    video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
+    video_id_sentiment = st.sidebar.text_input("Enter Video ID")
 
     comment_type = st.sidebar.radio("Select the type of comments you want to see:", ("Positive", "Neutral", "Negative", "All"))
     
@@ -258,37 +251,27 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         elif comment_type == "Negative":
             comments_sentiment = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity < 0]
 
-        # Generate Word Cloud
-        wordcloud = generate_word_cloud(comments_sentiment)
-        if wordcloud is not None:
-            st.subheader("Word Cloud for Comments")
-            st.image(wordcloud.to_image(), use_container_width=True)
+        # Display Sentiment Analysis Results
+        st.subheader("Sentiment Analysis Results")
 
-        # Sentiment Analysis Visualization
-        st.subheader("Sentiment Analysis Visualization")
-
-        # Pie Chart for Sentiment Distribution
+        # Bar Chart for Sentiment Analysis
         categorized_comments = analyze_and_categorize_comments(comments_sentiment)
-        fig_pie = px.pie(values=list(categorized_comments.values()), names=list(categorized_comments.keys()),
-                        title="Sentiment Distribution of Comments")
-        st.plotly_chart(fig_pie)
-
-        # Bar Chart for Polarity Distribution
-        polarity_values = [TextBlob(comment).sentiment.polarity for comment in comments_sentiment]
-        fig_polarity = px.bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
-                              title="Polarity Distribution of Comments", text=polarity_values, textposition="auto")
+        fig_polarity = px.bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()), labels={'x': 'Sentiment', 'y': 'Count'},
+                                title="Sentiment Analysis")
+        fig_polarity.update_layout(height=400, width=600)
         st.plotly_chart(fig_polarity)
 
-# Footer
-st.sidebar.title("Connect with Me")
-st.sidebar.markdown(
-    "[LinkedIn](https://www.linkedin.com/in/hvamsi/) | "
-    "[GitHub](https://github.com/hvamsiprakash)"
-)
+        # Word Cloud for Comments
+        st.subheader("Word Cloud for Comments")
+        wordcloud = generate_word_cloud(comments_sentiment)
+        if wordcloud:
+            st.image(wordcloud.to_image(), use_container_width=True)
 
-# Display the app
-st.title("YouTube Analyzer")
+        # Display Raw Comments
+        st.subheader("Raw Comments")
+        st.text("\n".join(comments_sentiment))
 
-# Run the app
-if __name__ == "__main__":
-    st.run()
+# Display footer and additional information
+st.sidebar.text("Developed by Your Name")
+st.sidebar.text("GitHub: Your GitHub Profile")
+
