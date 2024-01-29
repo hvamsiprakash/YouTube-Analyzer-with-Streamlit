@@ -188,7 +188,7 @@ st.sidebar.subheader("Select a Task")
 # Task 1: Channel Analytics
 if st.sidebar.checkbox("Channel Analytics"):
     st.sidebar.subheader("Channel Analytics")
-    channel_id_analytics = st.sidebar.text_input("Enter Channel ID for Analytics", value="UC4JX40jDee_tINbkjycV4Sg")
+    channel_id_analytics = st.sidebar.text_input("Enter Channel ID for Analytics", value="channel_id")
 
     if st.sidebar.button("Get Channel Analytics"):
         channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments, videos_df = get_channel_analytics(channel_id_analytics)
@@ -279,8 +279,6 @@ if st.sidebar.checkbox("Sentimental Analysis"):
                               title="Polarity Distribution of Comments", text=polarity_values, textposition="auto")
         st.plotly_chart(fig_polarity)
 
-
-
 # Footer
 st.sidebar.title("Connect with Me")
 st.sidebar.markdown(
@@ -295,27 +293,3 @@ st.title("YouTube Analyzer")
 # Run the app
 if __name__ == "__main__":
     st.run()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
