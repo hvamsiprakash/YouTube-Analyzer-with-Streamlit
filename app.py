@@ -1,5 +1,3 @@
-
- 
 # Importing necessary libraries and modules
 import joblib
 import streamlit as st
@@ -13,6 +11,7 @@ from wordcloud import WordCloud
 
 # Set your YouTube Data API key here
 YOUTUBE_API_KEY = "AIzaSyDm2xduRiZ1bsm9T7QjWehmNE95_4WR9KY"
+
 
 # Initialize the YouTube Data API client
 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
@@ -92,7 +91,7 @@ def get_video_comments(video_id):
         st.error(f"Error fetching comments: {e}")
         return []
 
-# Placeholder function for sentiment analysis
+# Function to perform sentiment analysis and categorize comments
 def analyze_and_categorize_comments(comments):
     categorized_comments = {'Positive': [], 'Negative': [], 'Neutral': []}
     for comment in comments:
@@ -109,14 +108,14 @@ def analyze_and_categorize_comments(comments):
 
     return categorized_comments
 
-# Placeholder function for summary generation
+# Function to generate a summary of comments using transformers
 def generate_summary(comments):
     summarizer = pipeline("summarization")
     concatenated_comments = " ".join(comments)
     summary = summarizer(concatenated_comments, max_length=150, min_length=50, length_penalty=2.0)[0]['summary']
     return summary
 
-# Placeholder function for word cloud generation
+# Function to generate word cloud based on comments
 def generate_word_cloud(comments):
     stop_words = set(stopwords.words('english'))
     words = word_tokenize(" ".join(comments))
@@ -129,10 +128,6 @@ def generate_word_cloud(comments):
     st.subheader("Word Cloud")
     st.image(wordcloud.to_image(), caption="Generated Word Cloud", use_container_width=True)
 
-# Placeholder function for abuse and spam detection
-def detect_abuse_and_spam(comments):
-    st.warning("Abuse and Spam Detection logic is a placeholder and needs to be implemented.")
-
 # Streamlit web app
 st.set_page_config(
     page_title="YouTube Video Analyzer",
@@ -141,7 +136,7 @@ st.set_page_config(
 )
 
 # Set up the layout
-st.title("About")
+st.title("YouTube Video Analyzer")
 st.info(
     "This app allows you to perform various analysis tasks on YouTube videos. "
     "Select a task from the sidebar to get started."
@@ -150,9 +145,10 @@ st.info(
 # Sidebar for user input
 st.sidebar.header("Select Task")
 
-# Search Video Details Task
-task = st.sidebar.selectbox("Task", ["Search Video Details", "Sentiment Analysis", "Summary Generation", "Word Cloud", "Abuse and Spam Detection"])
+# Task selection
+task = st.sidebar.selectbox("Task", ["Search Video Details", "Sentiment Analysis", "Summarization", "Word Cloud"])
 
+# Search Video Details Task
 if task == "Search Video Details":
     st.sidebar.info("Enter the topic to search for videos:")
     search_query = st.sidebar.text_input("Topic", value="Python Tutorial")
@@ -188,8 +184,8 @@ else:
                     st.write(comment[0])
                 st.write("---")
 
-    elif task == "Summary Generation":
-        st.sidebar.info("Generate a summary of the transcript of a YouTube video using transformers.")
+    elif task == "Summarization":
+        st.sidebar.info("Generate a summary of the transcript or comments of a YouTube video using transformers.")
         if st.sidebar.button("Generate Summary"):
             comments_summary = get_video_comments(video_id)
             st.subheader("Summary Generation Task")
@@ -203,17 +199,10 @@ else:
             st.subheader("Word Cloud Generation Task")
             generate_word_cloud(comments_wordcloud)
 
-    elif task == "Abuse and Spam Detection":
-        st.sidebar.info("Implement deep learning models to detect and filter out abusive or spammy comments.")
-        if st.sidebar.button("Detect Abuse and Spam"):
-            comments_abuse_spam = get_video_comments(video_id)
-            st.subheader("Abuse and Spam Detection Task")
-            detect_abuse_and_spam(comments_abuse_spam)
-
 # Credits
 st.title("Credits")
 st.info(
-    "This Streamlit app was created by [Your Name]. You can find the source code on [GitHub Repo Link]."
+    "This Streamlit app was created by [Your Name]."
 )
 
 # Footer
