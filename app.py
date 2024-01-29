@@ -219,16 +219,6 @@ elif st.sidebar.button("Video Recommendations"):
             st.image(thumbnail_url, caption=f"Video URL: {video[3]}", use_container_width=True)
 
 
-
-
-
-
-# Main content
-st.markdown("---")
-st.markdown("Welcome to YouTube Analyzer! This tool provides insights into YouTube channels, video recommendations, and sentiment analysis of video comments. Explore the sidebar to perform different tasks.")
-
-# Add more interactive charts and insights as needed for Channel Analytics and Sentimental Analysis
-
 # Display the Streamlit web app
 st.title("YouTube Analyzer")
 st.text("Welcome to YouTube Analyzer! This tool provides insights into YouTube channels, video recommendations, and sentiment analysis of video comments. Explore the sidebar to perform different tasks.")
