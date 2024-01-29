@@ -1,12 +1,11 @@
 # Importing necessary libraries and modules
 import streamlit as st
 import googleapiclient.discovery
-import plotly.express as px
 import pandas as pd
+import plotly.express as px
 from wordcloud import WordCloud
+from textblob import TextBlob
 from PIL import Image
-import requests
-import random
 
 # Set your YouTube Data API key here
 YOUTUBE_API_KEY = "AIzaSyDm2xduRiZ1bsm9T7QjWehmNE95_4WR9KY"
@@ -14,21 +13,22 @@ YOUTUBE_API_KEY = "AIzaSyDm2xduRiZ1bsm9T7QjWehmNE95_4WR9KY"
 # Initialize the YouTube Data API client
 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
 
-# Function to get channel details
-def get_channel_details(channel_id):
+# Function to get channel analytics
+def get_channel_analytics(channel_id):
     try:
-        channel_info = youtube.channels().list(
+        response = youtube.channels().list(
             part="snippet,statistics",
             id=channel_id
         ).execute()
 
-        snippet_info = channel_info.get("items", [])[0]["snippet"]
-        statistics_info = channel_info.get("items", [])[0]["statistics"]
+        channel_info = response.get("items", [])[0]["snippet"]
+        statistics_info = response.get("items", [])[0]["statistics"]
 
-        channel_title = snippet_info.get("title", "N/A")
-        description = snippet_info.get("description", "N/A")
-        published_at = snippet_info.get("publishedAt", "N/A")
-        country = snippet_info.get("country", "N/A")
+        channel_title = channel_info.get("title", "N/A")
+        description = channel_info.get("description", "N/A")
+        published_at = channel_info.get("publishedAt", "N/A")
+        country = channel_info.get("country", "N/A")
+
         total_videos = int(statistics_info.get("videoCount", 0))
         total_views = int(statistics_info.get("viewCount", 0))
         total_likes = int(statistics_info.get("likeCount", 0))
@@ -36,95 +36,119 @@ def get_channel_details(channel_id):
 
         return channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments
     except googleapiclient.errors.HttpError as e:
-        st.error(f"Error fetching channel details: {e}")
-        return "N/A", "N/A", "N/A", "N/A", 0, 0, 0, 0
+        st.error(f"Error fetching channel analytics: {e}")
+        return None
 
-# Function to get channel videos
-def get_channel_videos(channel_id, max_results=5):
+# Function to get video recommendations based on user's topic
+def get_video_recommendations(topic, max_results=5):
     try:
         response = youtube.search().list(
-            part="id",
-            channelId=channel_id,
+            q=topic,
+            type="video",
+            part="id,snippet",
             maxResults=max_results,
-            order="date"
+            order="relevance"
         ).execute()
 
-        video_ids = [item["id"]["videoId"] for item in response.get("items", [])]
-        return video_ids
+        video_details = []
+        for item in response.get("items", []):
+            video_id = item["id"]["videoId"]
+            title = item["snippet"]["title"]
+            views = item["snippet"]["viewCount"]
+            url = f"https://www.youtube.com/watch?v={video_id}"
+
+            # Use a separate request to get video statistics
+            video_info = youtube.videos().list(
+                part="statistics",
+                id=video_id
+            ).execute()
+
+            statistics_info = video_info.get("items", [])[0]["statistics"]
+            likes = int(statistics_info.get("likeCount", 0))
+
+            video_details.append((title, views, likes, url))
+
+        return video_details
     except googleapiclient.errors.HttpError as e:
-        st.error(f"Error fetching channel videos: {e}")
-        return []
+        st.error(f"Error fetching video recommendations: {e}")
+        return None
+
+# Function to get video comments
+def get_video_comments(video_id):
+    try:
+        comments = []
+        results = youtube.commentThreads().list(
+            part="snippet",
+            videoId=video_id,
+            textFormat="plainText",
+            maxResults=100
+        ).execute()
+
+        while "items" in results:
+            for item in results["items"]:
+                comment = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
+                comments.append(comment)
+            if "nextPageToken" in results:
+                results = youtube.commentThreads().list(
+                    part="snippet",
+                    videoId=video_id,
+                    textFormat="plainText",
+                    maxResults=100,
+                    pageToken=results["nextPageToken"]
+                ).execute()
+            else:
+                break
+
+        return comments
+    except googleapiclient.errors.HttpError as e:
+        st.error(f"Error fetching comments: {e}")
+        return None
+
+# Function to analyze and categorize comments
+def analyze_and_categorize_comments(comments):
+    categorized_comments = {'Positive': 0, 'Negative': 0, 'Neutral': 0}
+    for comment in comments:
+        analysis = TextBlob(comment)
+        polarity = analysis.sentiment.polarity
+
+        if polarity > 0:
+            categorized_comments['Positive'] += 1
+        elif polarity < 0:
+            categorized_comments['Negative'] += 1
+        else:
+            categorized_comments['Neutral'] += 1
+
+    return categorized_comments
 
 # Function to generate word cloud
-def generate_word_cloud(text):
-    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(" ".join(text))
+def generate_word_cloud(comments):
+    # Generating Word Cloud
+    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(" ".join(comments))
+
     return wordcloud
-
-# Function to generate thumbnail grid
-def generate_thumbnail_grid(video_ids):
-    thumbnail_grid = Image.new("RGB", (800, 400))
-    x_offset = 0
-    y_offset = 0
-    thumbnail_size = (100, 100)
-
-    for video_id in video_ids:
-        thumbnail_url = f"https://img.youtube.com/vi/{video_id}/default.jpg"
-        thumbnail_image = Image.open(requests.get(thumbnail_url, stream=True).raw)
-        thumbnail_image = thumbnail_image.resize(thumbnail_size)
-        thumbnail_grid.paste(thumbnail_image, (x_offset, y_offset))
-
-        x_offset += thumbnail_size[0]
-        if x_offset + thumbnail_size[0] > thumbnail_grid.width:
-            x_offset = 0
-            y_offset += thumbnail_size[1]
-
-    return thumbnail_grid
-
-# Function to get video details
-def get_video_details(video_id):
-    try:
-        video_info = youtube.videos().list(
-            part="snippet,statistics",
-            id=video_id
-        ).execute()
-
-        snippet_info = video_info.get("items", [])[0]["snippet"]
-        statistics_info = video_info.get("items", [])[0]["statistics"]
-
-        video_title = snippet_info.get("title", "N/A")
-        video_views = int(statistics_info.get("viewCount", 0))
-        video_likes = int(statistics_info.get("likeCount", 0))
-        video_comments = int(statistics_info.get("commentCount", 0))
-
-        return video_title, video_views, video_likes, video_comments
-    except googleapiclient.errors.HttpError as e:
-        st.error(f"Error fetching video details: {e}")
-        return "N/A", 0, 0, 0
 
 # Streamlit web app
 st.set_page_config(
-    page_title="YouTube Channel Analytics",
-    page_icon="📊",
+    page_title="YouTube Analyzer",
+    page_icon="📺",
     layout="wide"
 )
 
 # Set up the layout
-st.title("YouTube Channel Analytics")
-st.info(
-    "Explore various analytics about a YouTube channel. Choose a task from the sidebar to get insights."
-)
+st.title("YouTube Analyzer")
 
 # Sidebar for user input
-st.sidebar.header("Choose a Task")
+st.sidebar.header("Select Task")
 
-# Task 1: Channel Overview
-if st.sidebar.button("Channel Overview"):
-    st.sidebar.subheader("Channel Overview")
-    channel_id_overview = st.sidebar.text_input("Enter Channel ID", value="UC_x5XG1OV2P6uZZ5FSM9Ttw")
+# Task 1: Channel Analytics with Thumbnails and Advanced Charts
+if st.sidebar.button("Channel Analytics"):
+    st.sidebar.subheader("Channel Analytics")
+    channel_id_analytics = st.sidebar.text_input("Enter Channel ID", value="YOUR_CHANNEL_ID")
 
-    if st.sidebar.button("Fetch Channel Overview"):
-        channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments = get_channel_details(channel_id_overview)
+    if st.sidebar.button("Fetch Channel Analytics"):
+        channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments = get_channel_analytics(channel_id_analytics)
 
+        # Display Channel Overview
         st.subheader("Channel Overview")
         st.write(f"**Channel Title:** {channel_title}")
         st.write(f"**Description:** {description}")
@@ -135,74 +159,81 @@ if st.sidebar.button("Channel Overview"):
         st.write(f"**Total Likes:** {total_likes}")
         st.write(f"**Total Comments:** {total_comments}")
 
-        # Visualization 1: Bar chart for Total Videos, Views, Likes, and Comments
-        overview_data = {
-            "Metric": ["Total Videos", "Total Views", "Total Likes", "Total Comments"],
-            "Count": [total_videos, total_views, total_likes, total_comments]
-        }
-        overview_df = pd.DataFrame(overview_data)
-        fig_overview = px.bar(overview_df, x="Metric", y="Count", title="Channel Overview Metrics")
-        st.plotly_chart(fig_overview, use_container_width=True)
+        # Fetch Thumbnails and Advanced Charts
+        st.sidebar.checkbox("Show Thumbnails and Advanced Charts")
+        video_ids_thumbnails = get_channel_videos(channel_id_analytics, max_results=5)
 
-# Task 2: Latest Channel Videos
-elif st.sidebar.button("Latest Channel Videos"):
-    st.sidebar.subheader("Latest Channel Videos")
-    channel_id_latest = st.sidebar.text_input("Enter Channel ID", value="UC_x5XG1OV2P6uZZ5FSM9Ttw")
+        # Display Thumbnails
+        st.subheader("Latest Video Thumbnails")
+        for video_id in video_ids_thumbnails:
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
+            thumbnail_url = f"https://img.youtube.com/vi/{video_id}/default.jpg"
+            st.image(thumbnail_url, caption=f"Video URL: {video_url}", use_container_width=True)
 
-    if st.sidebar.button("Fetch Latest Channel Videos"):
-        video_ids_latest = get_channel_videos(channel_id_latest)
-        video_data_latest = []
+        # Display Advanced Charts
+        st.subheader("Advanced Charts for Latest Videos")
+        video_df = pd.DataFrame(columns=["Title", "Views", "Likes", "Comments", "URL"])
+        for video_id in video_ids_thumbnails:
+            video_title, video_views, video_likes, video_comments, video_url = get_video_details(video_id)
+            video_df = video_df.append({
+                "Title": video_title,
+                "Views": video_views,
+                "Likes": video_likes,
+                "Comments": video_comments,
+                "URL": video_url
+            }, ignore_index=True)
 
-        for video_id_latest in video_ids_latest:
-            video_title_latest, video_views_latest, video_likes_latest, video_comments_latest = get_video_details(video_id_latest)
+        # Visualization 1: Bar chart for Views, Likes, and Comments
+        fig_views = px.bar(video_df, x="Title", y="Views", title="Views of Recent Videos")
+        fig_likes = px.bar(video_df, x="Title", y="Likes", title="Likes of Recent Videos")
+        fig_comments = px.bar(video_df, x="Title", y="Comments", title="Comments of Recent Videos")
 
-            video_data_latest.append({
-                "Video ID": video_id_latest,
-                "Title": video_title_latest,
-                "Views": video_views_latest,
-                "Likes": video_likes_latest,
-                "Comments": video_comments_latest
-            })
+        # Visualization 2: Time Series chart for Views
+        fig_time_series = px.line(video_df, x="Title", y="Views", title="Time Series Analysis of Views")
 
-        video_df_latest = pd.DataFrame(video_data_latest)
+        # Display the charts
+        st.plotly_chart(fig_views)
+        st.plotly_chart(fig_likes)
+        st.plotly_chart(fig_comments)
+        st.plotly_chart(fig_time_series)
 
-        # Visualizations for Latest Channel Videos
-        if st.sidebar.checkbox("Show Visualizations for Latest Channel Videos"):
-            st.sidebar.subheader("Visualizations for Latest Channel Videos")
+# Task 2: Video Recommendation based on User's Topic of Interest
+if st.sidebar.button("Video Recommendation"):
+    st.sidebar.subheader("Video Recommendation")
+    topic_interest = st.sidebar.text_input("Enter Topic of Interest", value="Python Tutorial")
 
-            # Visualization 1: Bar chart for Views, Likes, and Comments
-            fig_views_latest = px.bar(video_df_latest, x="Video ID", y=["Views", "Likes", "Comments"],
-                                       title="Engagement Metrics for Latest Channel Videos")
-            st.plotly_chart(fig_views_latest, use_container_width=True)
+    if st.sidebar.button("Get Video Recommendations"):
+        video_recommendations = get_video_recommendations(topic_interest, max_results=5)
 
-            # Visualization 2: Time series line chart for Views
-            video_df_latest["Published At"] = pd.to_datetime(video_df_latest["Published At"])
-            fig_time_series_latest = px.line(video_df_latest, x="Published At", y="Views", title="Time Series of Views for Latest Videos")
-            st.plotly_chart(fig_time_series_latest, use_container_width=True)
+        # Display Video Recommendations
+        st.subheader("Video Recommendations")
+        for video in video_recommendations:
+            st.write(f"**Title:** {video[0]}")
+            st.write(f"**Views:** {video[1]}, **Likes:** {video[2]}, **URL:** {video[3]}")
+            thumbnail_url = f"https://img.youtube.com/vi/{video[3].split('=')[1]}/default.jpg"
+            st.image(thumbnail_url, caption=f"Video URL: {video[3]}", use_container_width=True)
+            st.write("---")
 
-# Task 3: Word Cloud and Thumbnails for Latest Channel Videos
-elif st.sidebar.button("Word Cloud and Thumbnails"):
-    st.sidebar.subheader("Word Cloud and Thumbnails")
-    channel_id_wordcloud = st.sidebar.text_input("Enter Channel ID", value="UC_x5XG1OV2P6uZZ5FSM9Ttw")
+# Task 3: Sentimental Analysis of Comments with Visualization and Word Cloud
+if st.sidebar.button("Sentimental Analysis"):
+    st.sidebar.subheader("Sentimental Analysis")
+    video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
 
-    if st.sidebar.button("Generate Word Cloud and Thumbnails"):
-        video_ids_wordcloud = get_channel_videos(channel_id_wordcloud)
-        comments_wordcloud = []
-
-        for video_id_wordcloud in video_ids_wordcloud:
-            comments_wordcloud.extend(get_video_comments(video_id_wordcloud))
+    if st.sidebar.button("Analyze Sentiments and Generate Word Cloud"):
+        comments_sentiment = get_video_comments(video_id_sentiment)
 
         # Generate Word Cloud
-        wordcloud = generate_word_cloud(comments_wordcloud)
+        wordcloud = generate_word_cloud(comments_sentiment)
         st.subheader("Word Cloud")
         st.image(wordcloud.to_image(), caption="Generated Word Cloud", use_container_width=True)
 
-        # Generate Thumbnail Grid
-        thumbnail_grid_image = generate_thumbnail_grid(video_ids_wordcloud)
-        st.subheader("Thumbnail Grid for Latest Channel Videos")
-        st.image(thumbnail_grid_image, caption="Thumbnail Grid", use_container_width=True)
+        # Analyze and Categorize Comments
+        categorized_comments = analyze_and_categorize_comments(comments_sentiment)
 
-# ... (Other tasks and code)
+        # Display Sentimental Analysis Results
+        st.subheader("Sentimental Analysis Results")
+        for sentiment, count in categorized_comments.items():
+            st.write(f"**{sentiment} Sentiments:** {count}")
 
 # Footer
 st.title("Connect with Me")
