@@ -9,7 +9,7 @@ from wordcloud import WordCloud
 import pandas as pd
 
 # Set your YouTube Data API key here
-YOUTUBE_API_KEY ="AIzaSyDm2xduRiZ1bsm9T7QjWehmNE95_4WR9KY"
+YOUTUBE_API_KEY = "AIzaSyDm2xduRiZ1bsm9T7QjWehmNE95_4WR9KY"
 
 # Initialize the YouTube Data API client
 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
@@ -79,18 +79,19 @@ def get_channel_videos(channel_id, max_results=5):
         return []
 
 # Function to analyze and categorize comments sentiment
-def analyze_and_categorize_comments(comments):
+def analyze_and_categorize_comments(comments, comment_type):
     categorized_comments = {'Positive': [], 'Negative': [], 'Neutral': []}
     for comment in comments:
         analysis = TextBlob(comment)
         polarity = analysis.sentiment.polarity
         subjectivity = analysis.sentiment.subjectivity
 
-        if polarity > 0:
+        # Categorize based on sentiment
+        if comment_type == 'Positive' and polarity > 0:
             categorized_comments['Positive'].append((comment, polarity, subjectivity))
-        elif polarity < 0:
+        elif comment_type == 'Negative' and polarity < 0:
             categorized_comments['Negative'].append((comment, polarity, subjectivity))
-        else:
+        elif comment_type == 'Neutral' and polarity == 0:
             categorized_comments['Neutral'].append((comment, polarity, subjectivity))
 
     return categorized_comments
@@ -122,104 +123,87 @@ st.info(
 )
 
 # Sidebar for user input
-st.sidebar.header("Select Task")
-task = st.sidebar.selectbox("Task", ["Channel Overview", "Video Analytics", "Sentiment Analysis"])
+st.sidebar.header("Channel Analytics")
 
 # Task 1: Channel Overview
-if task == "Channel Overview":
-    st.sidebar.header("Task Details")
-    channel_id = st.sidebar.text_input("Enter Channel ID", value="YOUR_CHANNEL_ID")
+st.sidebar.subheader("Channel Overview")
+channel_id = st.sidebar.text_input("Enter Channel ID", value="YOUR_CHANNEL_ID")
 
-    if st.sidebar.button("Fetch Channel Overview"):
-        channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments = get_channel_details(channel_id)
+if st.sidebar.button("Fetch Channel Overview"):
+    channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments = get_channel_details(channel_id)
 
-        if channel_title != "N/A":
-            # Display channel details
-            st.subheader("Channel Overview")
-            st.write(f"**Title:** {channel_title}")
-            st.write(f"**Description:** {description}")
-            st.write(f"**Published At:** {published_at}")
-            st.write(f"**Country:** {country}")
-            st.write(f"**Total Videos:** {total_videos}")
-            st.write(f"**Total Views:** {total_views}")
-            st.write(f"**Total Likes:** {total_likes}")
-            st.write(f"**Total Comments:** {total_comments}")
-        else:
-            st.warning("Channel details not available.")
+    if channel_title != "N/A":
+        # Display channel details
+        st.subheader("Channel Overview")
+        st.write(f"**Title:** {channel_title}")
+        st.write(f"**Description:** {description}")
+        st.write(f"**Published At:** {published_at}")
+        st.write(f"**Country:** {country}")
+        st.write(f"**Total Videos:** {total_videos}")
+        st.write(f"**Total Views:** {total_views}")
+        st.write(f"**Total Likes:** {total_likes}")
+        st.write(f"**Total Comments:** {total_comments}")
+    else:
+        st.warning("Channel details not available.")
 
 # Task 2: Video Analytics
-elif task == "Video Analytics":
-    st.sidebar.header("Task Details")
-    channel_id = st.sidebar.text_input("Enter Channel ID", value="YOUR_CHANNEL_ID")
+st.sidebar.subheader("Video Analytics")
+video_ids = get_channel_videos(channel_id)
+video_data = []
 
-    if st.sidebar.button("Fetch Video Analytics"):
-        # Fetch video details for the channel
-        video_ids = get_channel_videos(channel_id)
-        video_data = []
-        for video_id in video_ids:
-            title, views, comments, likes, video_url, thumbnail_url = get_video_details(video_id)
-            video_data.append({
-                "Title": title,
-                "Views": views,
-                "Comments": comments,
-                "Likes": likes,
-                "Video URL": video_url,
-                "Thumbnail URL": thumbnail_url
-            })
+for video_id in video_ids:
+    title, views, comments, likes, video_url, thumbnail_url = get_video_details(video_id)
+    video_data.append({
+        "Title": title,
+        "Views": views,
+        "Comments": comments,
+        "Likes": likes,
+        "Video URL": video_url,
+        "Thumbnail URL": thumbnail_url
+    })
 
-        video_df = pd.DataFrame(video_data)
+video_df = pd.DataFrame(video_data)
 
-        # Display video details
-        st.subheader("Recent Video Details")
-        st.dataframe(video_df)
+# Display video details
+st.subheader("Recent Video Details")
+st.dataframe(video_df)
 
-        # Visualize video details (e.g., views, likes, comments)
-        fig_views = px.bar(video_df, x="Title", y="Views", title="Views of Recent Videos")
-        fig_likes = px.bar(video_df, x="Title", y="Likes", title="Likes of Recent Videos")
-        fig_comments = px.bar(video_df, x="Title", y="Comments", title="Comments on Recent Videos")
+# Visualize video details (e.g., views, likes, comments)
+fig_views = px.bar(video_df, x="Title", y="Views", title="Views of Recent Videos")
+fig_likes = px.bar(video_df, x="Title", y="Likes", title="Likes of Recent Videos")
+fig_comments = px.bar(video_df, x="Title", y="Comments", title="Comments on Recent Videos")
 
-        st.plotly_chart(fig_views, use_container_width=True)
-        st.plotly_chart(fig_likes, use_container_width=True)
-        st.plotly_chart(fig_comments, use_container_width=True)
+st.plotly_chart(fig_views, use_container_width=True)
+st.plotly_chart(fig_likes, use_container_width=True)
+st.plotly_chart(fig_comments, use_container_width=True)
 
 # Task 3: Sentiment Analysis
-elif task == "Sentiment Analysis":
-    st.sidebar.header("Task Details")
-    video_id = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
+st.sidebar.subheader("Sentiment Analysis")
+comment_type = st.sidebar.selectbox("Select Comment Type", ["Positive", "Negative", "Neutral"])
+st.sidebar.info("Choose the type of comments to display.")
 
-    if st.sidebar.button("Analyze Comments Sentiment"):
-        # Fetch and analyze video comments
-        all_comments = []
-        for video_id in video_ids:
-            comments = get_video_comments(video_id)
-            all_comments.extend(comments)
+if st.sidebar.button("Analyze Comments Sentiment"):
+    all_comments = []
+    for video_id in video_ids:
+        comments = get_video_comments(video_id)
+        all_comments.extend(comments)
 
-        if all_comments:
-            # Analyze sentiment of comments
-            categorized_sentiments = analyze_and_categorize_comments(all_comments)
+    if all_comments:
+        # Analyze sentiment of comments
+        categorized_sentiments = analyze_and_categorize_comments(all_comments, comment_type)
 
-            # Display sentiment analysis results
-            st.subheader("Sentiment Analysis Results")
-            for sentiment, comments in categorized_sentiments.items():
-                st.write(f"**{sentiment} Sentiments:**")
-                for comment in comments:
-                    st.write(comment[0])
-                st.write("---")
+        # Display sentiment analysis results
+        st.subheader(f"{comment_type} Sentiments")
+        for sentiment, comments in categorized_sentiments.items():
+            st.write(f"**{sentiment} Sentiments:**")
+            for comment in comments:
+                st.write(comment[0])
+            st.write("---")
 
-            # Generate Word Cloud
-            generate_word_cloud(all_comments)
-        else:
-            st.warning("No comments available for sentiment analysis.")
+        # Generate Word Cloud
+        generate_word_cloud(all_comments)
+    else:
+        st.warning("No comments available for sentiment analysis.")
 
 # Footer
-st.title("About")
-st.info(
-    "This Streamlit app provides various analytics about a YouTube channel. "
-    "Explore the tasks in the sidebar to get insights. "
-)
-
-st.title("Connect with Me")
-st.markdown(
-    "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
-    "[GitHub](https://github.com/your-github-profile)"
-)
+st.title("YouTube Channel Analytics")
