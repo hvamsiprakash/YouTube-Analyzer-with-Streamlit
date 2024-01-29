@@ -159,32 +159,6 @@ if st.sidebar.button("Channel Analytics"):
         st.write(f"**Total Likes:** {total_likes}")
         st.write(f"**Total Comments:** {total_comments}")
 
-        # Fetch Thumbnails and Advanced Charts
-        st.sidebar.checkbox("Show Thumbnails and Advanced Charts")
-        video_ids_thumbnails = get_channel_videos(channel_id_analytics, max_results=5)
-
-        # Display Thumbnails
-        st.subheader("Latest Video Thumbnails")
-        for video_id in video_ids_thumbnails:
-            video_url = f"https://www.youtube.com/watch?v={video_id}"
-            thumbnail_url = f"https://img.youtube.com/vi/{video_id}/default.jpg"
-            st.image(thumbnail_url, caption=f"Video URL: {video_url}", use_container_width=True)
-
-        # Display Advanced Charts
-        st.subheader("Advanced Charts")
-        fig_views = px.bar(video_df, x="Title", y="Views", title="Views of Recent Videos")
-        fig_likes = px.bar(video_df, x="Title", y="Likes", title="Likes of Recent Videos")
-        fig_comments = px.bar(video_df, x="Title", y="Comments", title="Comments of Recent Videos")
-
-        # Visualization 2: Time Series chart for Views
-        fig_time_series = px.line(video_df, x="Title", y="Views", title="Time Series Analysis of Views")
-
-        # Display the charts
-        st.plotly_chart(fig_views)
-        st.plotly_chart(fig_likes)
-        st.plotly_chart(fig_comments)
-        st.plotly_chart(fig_time_series)
-
 # Task 2: Video Recommendation based on User's Topic of Interest
 if st.sidebar.button("Video Recommendation"):
     st.sidebar.subheader("Video Recommendation")
