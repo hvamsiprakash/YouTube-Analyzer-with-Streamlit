@@ -104,7 +104,8 @@ def get_video_recommendations(topic, max_results=5):
 def get_video_comments(video_id):
     try:
         comments = []
-        # Check if comments are enabled
+
+        # Check if comments are disabled on the video
         video_info = youtube.videos().list(
             part="snippet",
             id=video_id
@@ -132,8 +133,6 @@ def get_video_comments(video_id):
                     ).execute()
                 else:
                     break
-        else:
-            st.warning("Comments are disabled for this video.")
 
         return comments
     except googleapiclient.errors.HttpError as e:
@@ -182,9 +181,10 @@ st.set_page_config(
 st.title("YouTube Analyzer")
 
 # Main interface paragraphs for each task
-st.markdown(
-    "Welcome to YouTube Analyzer! This interactive tool provides insights into YouTube channels, "
-    "video recommendations, and sentiment analysis of video comments. Use the sidebar to select a task and explore the features."
+st.write(
+    "Welcome to YouTube Analyzer! This tool provides insights into YouTube channels, "
+    "video recommendations, and sentiment analysis of video comments. Explore the sidebar "
+    "to analyze channels, discover video recommendations, and understand sentiment trends."
 )
 
 # Sidebar for user input
@@ -209,20 +209,23 @@ if st.sidebar.checkbox("Channel Analytics"):
         st.write(f"**Total Likes:** {total_likes}")
         st.write(f"**Total Comments:** {total_comments}")
 
-        # Additional: Display DataFrame of video details
-        st.subheader("All Video Details")
-        st.dataframe(videos_df)
+        # Advanced Analytics Charts
+        st.subheader("Advanced Analytics Charts")
 
-        # Additional: Advanced charts
-        st.subheader("Advanced Charts")
-
-        # Time series chart for views
-        fig_views = px.line(videos_df, x="Title", y="Views", title="Views Over Time")
+        # Time Series Chart for Views
+        fig_views = px.line(videos_df, x="Title", y="Views", title="Time Series Chart for Views")
+        fig_views.update_xaxes(title_text='Videos', tickangle=45, tickmode='array', tickvals=videos_df.index, ticktext=videos_df['Title'])
         st.plotly_chart(fig_views)
 
-        # Bar chart for likes and comments
-        fig_likes_comments = px.bar(videos_df, x="Title", y=["Likes", "Comments"], title="Likes and Comments Comparison")
+        # Bar Chart for Likes and Comments
+        fig_likes_comments = px.bar(videos_df, x="Title", y=["Likes", "Comments"],
+                                    title="Bar Chart for Likes and Comments", barmode="group")
+        fig_likes_comments.update_xaxes(title_text='Videos', tickangle=45, tickmode='array', tickvals=videos_df.index, ticktext=videos_df['Title'])
         st.plotly_chart(fig_likes_comments)
+
+        # Additional: Display DataFrame of video details with clickable URLs
+        st.subheader("All Video Details")
+        st.dataframe(videos_df.style.format({'URL': '<a href="{}" target="_blank">Link</a>'}, escape=False), unsafe_allow_html=True)
 
 # Task 2: Video Recommendation based on User's Topic of Interest
 if st.sidebar.checkbox("Video Recommendation"):
@@ -263,7 +266,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         # Analyze and Categorize Comments
         categorized_comments = analyze_and_categorize_comments(comments_sentiment, sentiment_type)
 
-        # Additional: Advanced Visualization of Sentiments
+        # Advanced Visualization of Sentiments
         st.subheader("Sentimental Analysis Results")
         sentiment_fig = px.pie(values=list(categorized_comments.values()), names=list(categorized_comments.keys()), title="Sentiment Distribution")
         st.plotly_chart(sentiment_fig)
