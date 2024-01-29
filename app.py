@@ -287,7 +287,6 @@ st.sidebar.markdown(
 )
 
 # Display the app
-st.set_page_config(page_title="YouTube Analyzer", page_icon=":movie_camera:", layout="wide")
 st.title("YouTube Analyzer")
 
 # Run the app
