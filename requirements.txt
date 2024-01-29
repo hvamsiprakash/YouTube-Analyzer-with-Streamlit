@@ -13,4 +13,5 @@ moviepy==1.0.3
 transformers==4.10.3
 profanity-check==1.0.3
 torch==1.10.1
+oauth2client<4.0.0
 
