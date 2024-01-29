@@ -1,9 +1,10 @@
+User
 # Importing necessary libraries and modules
 import streamlit as st
 import googleapiclient.discovery
 import pandas as pd
 import plotly.express as px
-from wordcloud import WordCloud
+from wordcloud import WordCloud, STOPWORDS
 from textblob import TextBlob
 
 # Set your YouTube Data API key here
@@ -178,7 +179,28 @@ def analyze_and_categorize_comments(comments):
         st.error(f"Error analyzing comments: {e}")
         return {'Positive': 0, 'Neutral': 0, 'Negative': 0}
 
+# Function to get user-selected comments based on sentiment
+def get_user_selected_comments(comments, comment_type):
+    try:
+        selected_comments = []
+        for comment in comments:
+            analysis = TextBlob(comment)
+            if comment_type == "positive" and analysis.sentiment.polarity > 0:
+                selected_comments.append(comment)
+            elif comment_type == "neutral" and analysis.sentiment.polarity == 0:
+                selected_comments.append(comment)
+            elif comment_type == "negative" and analysis.sentiment.polarity < 0:
+                selected_comments.append(comment)
+
+        return selected_comments
+    except Exception as e:
+        st.error(f"Error filtering user-selected comments: {e}")
+        return []
+
 # Main Streamlit app
+st.set_page_config(page_title="YouTube Analyzer", page_icon=":movie_camera:", layout="wide")
+
+# Main layout
 st.title("YouTube Analyzer")
 
 # Sidebar
@@ -218,18 +240,10 @@ if st.sidebar.checkbox("Channel Analytics"):
         fig_likes_comments.update_layout(height=400, width=800)
         st.plotly_chart(fig_likes_comments)
 
-        # Additional: Polarity Chart for Comments
-        categorized_comments = analyze_and_categorize_comments(videos_df["Comments"].apply(str))
-        fig_polarity = px.bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
-                              labels={'x': 'Sentiment', 'y': 'Count'},
-                              title="Sentiment Distribution of Comments")
-        fig_polarity.update_layout(height=400, width=800)
-        st.plotly_chart(fig_polarity)
-
         # Additional: Display DataFrame of video details with clickable URLs
         st.subheader("All Video Details")
         videos_df['URL'] = videos_df['URL'].apply(lambda x: f'<a href="{x}" target="_blank">Link</a>')
-        st.write(videos_df, unsafe_allow_html=True)
+        st.dataframe(videos_df.style.format({'URL': '<a href="{}" target="_blank">Link</a>'}, escape=False), unsafe_allow_html=True)
 
 # Task 2: Video Recommendation based on User's Topic of Interest
 if st.sidebar.checkbox("Video Recommendation"):
@@ -253,22 +267,61 @@ if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
     video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
 
-    if st.sidebar.button("Analyze Sentiments and Generate Word Cloud"):
-        comments_sentiment = get_video_comments(video_id_sentiment)
+    # User selection for comment type
+    comment_type = st.sidebar.radio(
+        "Select the type of comments to analyze:",
+        options=["All Comments", "Positive Comments", "Neutral Comments", "Negative Comments"]
+    )
 
-        # Generate Word Cloud
-        wordcloud = generate_word_cloud(comments_sentiment)
-        if wordcloud is not None:
-            st.subheader("Word Cloud")
-            st.image(wordcloud.to_image(), caption="Generated Word Cloud", use_container_width=True)
+    # Fetch comments for the selected video
+    video_comments = get_video_comments(video_id_sentiment)
 
-            # Analyze and Categorize Comments
-            categorized_comments = analyze_and_categorize_comments(comments_sentiment)
+    if video_comments:
+        st.subheader("Sentimental Analysis of Comments")
 
-            # Display Sentimental Analysis Results
-            st.subheader("Sentimental Analysis Results")
-            for sentiment, count in categorized_comments.items():
-                st.write(f"**{sentiment} Sentiments:** {count}")
+        # Display user-selected comment type
+        st.write(f"**Selected Comment Type:** {comment_type}")
+
+        # Analyze and categorize comments sentiment
+        categorized_comments = analyze_and_categorize_comments(video_comments)
+
+        # Display sentiment distribution
+        st.subheader("Sentiment Distribution of Comments")
+        fig_polarity = px.bar(
+            x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
+            title="Sentiment Distribution of Comments", labels={"x": "Sentiment", "y": "Count"}
+        )
+        fig_polarity.update_layout(height=400, width=800)
+        st.plotly_chart(fig_polarity)
+
+        # User selection for additional visualization charts
+        st.subheader("Additional Visualization Charts")
+
+        if st.checkbox("Display Pie Chart for Sentiment Distribution"):
+            fig_pie = px.pie(
+                values=list(categorized_comments.values()), names=list(categorized_comments.keys()),
+                title="Pie Chart for Sentiment Distribution"
+            )
+            st.plotly_chart(fig_pie)
+
+        # Word Cloud for Comments
+        if st.checkbox("Display Word Cloud for Comments"):
+            wordcloud = generate_word_cloud(video_comments)
+            if wordcloud:
+                st.subheader("Word Cloud for Comments")
+                st.image(wordcloud.to_array(), use_container_width=True)
+
+        # User selection to display specific comment type
+        if comment_type != "All Comments":
+            selected_comments = get_user_selected_comments(video_comments, comment_type.lower())
+
+            st.subheader(f"{comment_type.capitalize()} Comments")
+            st.text_area("Selected Comments", "\n".join(selected_comments), height=200)
+    else:
+        st.warning("No comments available for sentiment analysis.")
+
+
+
 
 # Footer
 st.sidebar.title("Connect with Me")
