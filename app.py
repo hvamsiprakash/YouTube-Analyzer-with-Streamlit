@@ -7,7 +7,7 @@ from wordcloud import WordCloud
 from textblob import TextBlob
 
 # Set your YouTube Data API key here
-YOUTUBE_API_KEY = "AIzaSyDuuUZbI7ToC7iuweYJ1MiNXAS83Goj_Cc"
+YOUTUBE_API_KEY = "YOUR_YOUTUBE_API_KEY"
 
 # Initialize the YouTube Data API client
 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
@@ -77,10 +77,10 @@ def get_all_video_details(channel_id):
         return pd.DataFrame(columns=["Title", "Views", "Likes", "Comments", "URL"])
 
 # Function to get video recommendations based on user's topic
-def get_video_recommendations(topic, max_results=10):
+def get_video_recommendations(channel_id, max_results=10):
     try:
         response = youtube.search().list(
-            q=topic,
+            channelId=channel_id,
             type="video",
             part="id,snippet",
             maxResults=max_results,
@@ -92,184 +92,115 @@ def get_video_recommendations(topic, max_results=10):
             video_id = item["id"]["videoId"]
             title = item["snippet"]["title"]
             views = item["snippet"]["viewCount"]
-            likes = item["snippet"]["likeCount"]
-            comments = item["snippet"]["commentCount"]
             url = f"https://www.youtube.com/watch?v={video_id}"
+
+            # Use a separate request to get video statistics
+            video_info = youtube.videos().list(
+                part="statistics",
+                id=video_id
+            ).execute()
+
+            statistics_info = video_info.get("items", [])[0]["statistics"]
+            likes = int(statistics_info.get("likeCount", 0))
+            comments = int(statistics_info.get("commentCount", 0))
 
             video_details.append((title, views, likes, comments, url))
 
-        return video_details
+        videos_df = pd.DataFrame(video_details, columns=["Title", "Views", "Likes", "Comments", "URL"])
+        return videos_df
     except googleapiclient.errors.HttpError as e:
         st.error(f"Error fetching video recommendations: {e}")
-        return None
+        return pd.DataFrame(columns=["Title", "Views", "Likes", "Comments", "URL"])
 
-# Function to get video comments
-def get_video_comments(video_id):
-    try:
-        comments = []
-        results = youtube.commentThreads().list(
-            part="snippet",
-            videoId=video_id,
-            textFormat="plainText",
-            maxResults=100
-        ).execute()
+# Function to analyze and categorize comments sentiment
+def analyze_and_categorize_comments(comments):
+    categorized_comments = {"Positive": 0, "Neutral": 0, "Negative": 0}
+    for comment in comments:
+        analysis = TextBlob(comment).sentiment.polarity
+        if analysis > 0:
+            categorized_comments["Positive"] += 1
+        elif analysis < 0:
+            categorized_comments["Negative"] += 1
+        else:
+            categorized_comments["Neutral"] += 1
+    return categorized_comments
 
-        while "items" in results:
-            for item in results["items"]:
-                comment = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
-                comments.append(comment)
-
-            # Get the next set of results
-            if "nextPageToken" in results:
-                results = youtube.commentThreads().list(
-                    part="snippet",
-                    videoId=video_id,
-                    textFormat="plainText",
-                    pageToken=results["nextPageToken"],
-                    maxResults=100
-                ).execute()
-            else:
-                break
-
-        return comments
-    except googleapiclient.errors.HttpError as e:
-        st.error(f"Error fetching comments: {e}")
-        return []
-
-# Function to generate word cloud from comments
+# Function to generate word cloud
 def generate_word_cloud(comments):
     try:
-        if not comments:
-            st.warning("No comments to generate a word cloud.")
-            return None
-
-        text = " ".join(comments)
-        wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
-
+        comments_text = " ".join(comments)
+        wordcloud = WordCloud(width=800, height=400, random_state=21, max_font_size=110).generate(comments_text)
         return wordcloud
     except Exception as e:
         st.error(f"Error generating word cloud: {e}")
         return None
 
-# Function to analyze and categorize comments sentiment
-def analyze_and_categorize_comments(comments):
-    try:
-        categorized_comments = {'Positive': 0, 'Neutral': 0, 'Negative': 0}
+# Main function to run the Streamlit app
+def main():
+    # Set Streamlit page configuration
+    st.set_page_config(page_title="YouTube Analyzer", page_icon=":movie_camera:", layout="wide")
 
-        for comment in comments:
-            analysis = TextBlob(comment)
-            # Classify the polarity of the comment
-            if analysis.sentiment.polarity > 0:
-                categorized_comments['Positive'] += 1
-            elif analysis.sentiment.polarity == 0:
-                categorized_comments['Neutral'] += 1
+    # Sidebar for user input
+    st.sidebar.title("YouTube Analyzer")
+    st.sidebar.subheader("Enter YouTube Channel ID:")
+    channel_id = st.sidebar.text_input("Channel ID", "UC4JX40jDee_tINbkjycV4Sg")
+
+    if st.sidebar.button("Analyze"):
+        # Channel Analytics Section
+        st.title("Channel Analytics")
+        channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments, videos_df = get_channel_analytics(channel_id)
+
+        if channel_title is not None:
+            st.write(f"**Channel Title:** {channel_title}")
+            st.write(f"**Description:** {description}")
+            st.write(f"**Published At:** {published_at}")
+            st.write(f"**Country:** {country}")
+            st.write(f"**Total Videos:** {total_videos}")
+            st.write(f"**Total Views:** {total_views}")
+            st.write(f"**Total Likes:** {total_likes}")
+            st.write(f"**Total Comments:** {total_comments}")
+
+            # All Video Details Section
+            st.title("All Video Details")
+            if not videos_df.empty:
+                st.dataframe(videos_df)
             else:
-                categorized_comments['Negative'] += 1
+                st.warning("No video details available.")
 
-        return categorized_comments
-    except Exception as e:
-        st.error(f"Error analyzing comments: {e}")
-        return {'Positive': 0, 'Neutral': 0, 'Negative': 0}
+            # Video Recommendations Section
+            st.title("Video Recommendations")
+            video_recommendations = get_video_recommendations(channel_id, max_results=10)
+            if not video_recommendations.empty:
+                st.dataframe(video_recommendations)
+            else:
+                st.warning("No video recommendations available.")
 
-# Main Streamlit app
-st.title("YouTube Analyzer")
+            # Sentiment Analysis Section
+            st.title("Sentiment Analysis of Comments with Visualization and Word Cloud")
 
-# Sidebar
-st.sidebar.title("YouTube Analyzer")
-st.sidebar.subheader("Select a Task")
+            # Fetch all video comments
+            comments = []
+            for video_url in videos_df["URL"]:
+                video_id = video_url.split("=")[-1]
+                video_comments = get_video_comments(video_id)
+                comments.extend(video_comments)
 
-# Task 1: Channel Analytics
-if st.sidebar.checkbox("Channel Analytics"):
-    st.sidebar.subheader("Channel Analytics")
-    channel_id_analytics = st.sidebar.text_input("Enter Channel ID for Analytics", value="YOUR_CHANNEL_ID")
+            # Sentiment Analysis Visualization
+            st.subheader("Sentiment Analysis Visualization")
 
-    if st.sidebar.button("Get Channel Analytics"):
-        channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments, videos_df = get_channel_analytics(channel_id_analytics)
+            # Bar Chart for Sentiment Analysis
+            categorized_comments = analyze_and_categorize_comments(comments)
+            fig_polarity = px.bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
+                                  title="Sentiment Analysis Bar Chart", labels={'x': 'Sentiment', 'y': 'Count'})
+            fig_polarity.update_layout(height=400, width=800)
+            st.plotly_chart(fig_polarity)
 
-        # Display Channel Overview
-        st.subheader("Channel Overview")
-        st.write(f"**Channel Title:** {channel_title}")
-        st.write(f"**Description:** {description}")
-        st.write(f"**Published At:** {published_at}")
-        st.write(f"**Country:** {country}")
-        st.write(f"**Total Videos:** {total_videos}")
-        st.write(f"**Total Views:** {total_views}")
-        st.write(f"**Total Likes:** {total_likes}")
-        st.write(f"**Total Comments:** {total_comments}")
+            # Generate Word Cloud
+            wordcloud = generate_word_cloud(comments)
+            if wordcloud is not None:
+                st.subheader("Word Cloud for Comments")
+                st.image(wordcloud.to_image(), use_container_width=True)
 
-        # Advanced Charts for Channel Analytics
-        st.subheader("Analytics Charts")
-
-        # Time Series Chart for Views
-        fig_views = px.line(videos_df, x="Title", y="Views", title="Time Series Chart for Views")
-        fig_views.update_layout(height=400, width=800)
-        st.plotly_chart(fig_views)
-
-        # Bar Chart for Likes and Comments
-        fig_likes_comments = px.bar(videos_df, x="Title", y=["Likes", "Comments"],
-                                    title="Bar Chart for Likes and Comments", barmode="group")
-        fig_likes_comments.update_layout(height=400, width=800)
-        st.plotly_chart(fig_likes_comments)
-
-        # Additional: Display DataFrame of video details with clickable URLs
-        st.subheader("All Video Details")
-        try:
-            videos_df['URL'] = videos_df['URL'].apply(lambda x: f'<a href="{x}" target="_blank">Link</a>')
-            st.dataframe(videos_df.style.format({'URL': '<a href="{}" target="_blank">Link</a>'}, escape=False), unsafe_allow_html=True)
-        except Exception as e:
-            st.error(f"Error displaying video details: {e}")
-
-# Task 2: Video Recommendation based on User's Topic of Interest
-if st.sidebar.checkbox("Video Recommendation"):
-    st.sidebar.subheader("Video Recommendation")
-    topic_interest = st.sidebar.text_input("Enter Topic of Interest", value="Python Tutorial")
-
-    if st.sidebar.button("Get Video Recommendations"):
-        video_recommendations = get_video_recommendations(topic_interest, max_results=10)
-
-        # Display Video Recommendations
-        st.subheader("Video Recommendations")
-        for video in video_recommendations:
-            st.write(f"**Title:** {video[0]}")
-            st.write(f"**Views:** {video[1]}, **Likes:** {video[2]}, **Comments:** {video[3]}")
-            thumbnail_url = f"https://img.youtube.com/vi/{video[4].split('=')[1]}/default.jpg"
-            st.image(thumbnail_url, caption=f"Video URL: {video[4]}", use_container_width=True)
-            st.write("---")
-
-# Task 3: Sentimental Analysis of Comments with Visualization and Word Cloud
-if st.sidebar.checkbox("Sentimental Analysis"):
-    st.sidebar.subheader("Sentimental Analysis")
-    video_id_sentiment = st.sidebar.text_input("Enter Video ID for Sentimental Analysis", value="YOUR_VIDEO_ID")
-
-    comment_type = st.sidebar.radio("Select the type of comments you want to see:", ("Positive", "Neutral", "Negative", "All"))
-
-    if st.sidebar.button("Analyze Sentiments and Generate Word Cloud"):
-        comments_sentiment = get_video_comments(video_id_sentiment)
-
-        # Filter comments based on user choice
-        if comment_type == "Positive":
-            comments_sentiment = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity > 0]
-        elif comment_type == "Neutral":
-            comments_sentiment = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity == 0]
-        elif comment_type == "Negative":
-            comments_sentiment = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity < 0]
-
-        # Generate Word Cloud
-        wordcloud = generate_word_cloud(comments_sentiment)
-        if wordcloud is not None:
-            st.subheader("Word Cloud for Comments")
-            st.image(wordcloud.to_image(), use_container_width=True)
-
-        # Sentiment Analysis Visualization
-        st.subheader("Sentiment Analysis Visualization")
-
-        # Bar Chart for Sentiment Analysis
-        categorized_comments = analyze_and_categorize_comments(comments_sentiment)
-        fig_polarity = px.bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
-                              title="Sentiment Analysis Bar Chart", labels={'x': 'Sentiment', 'y': 'Count'})
-        fig_polarity.update_layout(height=400, width=800)
-        st.plotly_chart(fig_polarity)
-
-# Set Streamlit page configuration
-st.set_page_config(page_title="YouTube Analyzer", page_icon=":movie_camera:", layout="wide")
-
+# Run the app
+if __name__ == "__main__":
+    main()
