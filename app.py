@@ -178,23 +178,16 @@ st.set_page_config(
     layout="wide"
 )
 
-# Set up the layout
-st.title("YouTube Analyzer")
+# Sidebar
+st.sidebar.title("YouTube Analyzer")
+st.sidebar.subheader("Select a Task")
 
-# Sidebar for user input
-st.sidebar.header("Select Task")
-
-# Welcome Paragraph
-st.write(
-    "Welcome to YouTube Analyzer! This tool provides insights into YouTube channels, video recommendations, and sentiment analysis of video comments."
-)
-
-# Task 1: Channel Analytics with Thumbnails and Advanced Charts
+# Task 1: Channel Analytics
 if st.sidebar.checkbox("Channel Analytics"):
     st.sidebar.subheader("Channel Analytics")
-    channel_id_analytics = st.sidebar.text_input("Enter Channel ID", value="YOUR_CHANNEL_ID")
+    channel_id_analytics = st.sidebar.text_input("Enter Channel ID for Analytics", value="UC4JX40jDee_tINbkjycV4Sg")
 
-    if st.sidebar.button("Fetch Channel Analytics"):
+    if st.sidebar.button("Get Channel Analytics"):
         channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments, videos_df = get_channel_analytics(channel_id_analytics)
 
         # Display Channel Overview
@@ -225,7 +218,6 @@ if st.sidebar.checkbox("Channel Analytics"):
         # Additional: Polarity Chart for Comments
         categorized_comments = analyze_and_categorize_comments(videos_df["Comments"].apply(str))
         fig_polarity = px.bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
-                              text=list(categorized_comments.values()), textposition='auto',
                               labels={'x': 'Sentiment', 'y': 'Count'},
                               title="Sentiment Distribution of Comments")
         fig_polarity.update_layout(height=400, width=800)
@@ -273,7 +265,6 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             st.subheader("Sentimental Analysis Results")
             for sentiment, count in categorized_comments.items():
                 st.write(f"**{sentiment} Sentiments:** {count}")
-
 
 # Footer
 st.sidebar.title("Connect with Me")
