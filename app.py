@@ -171,7 +171,11 @@ if st.sidebar.checkbox("Video Recommendation"):
         for video in video_recommendations:
             st.write(f"**Title:** {video[0]}")
             st.write(f"**Views:** {video[1]}, **Likes:** {video[2]}, **URL:** {video[3]}")
-            thumbnail_url = f"https://img.youtube.com/vi/{video[3].split('=')[1]}/default.jpg"
+
+            # Extracting video_id from the URL
+            video_id_from_url = video[3].split('v=')[1]
+            thumbnail_url = f"https://img.youtube.com/vi/{video_id_from_url}/default.jpg"
+
             st.image(thumbnail_url, caption=f"Video URL: {video[3]}", use_container_width=True)
             st.write("---")
 
