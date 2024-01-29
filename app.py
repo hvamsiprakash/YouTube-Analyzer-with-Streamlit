@@ -1,4 +1,4 @@
-User
+
 # Importing necessary libraries and modules
 import streamlit as st
 import googleapiclient.discovery
@@ -319,9 +319,6 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             st.text_area("Selected Comments", "\n".join(selected_comments), height=200)
     else:
         st.warning("No comments available for sentiment analysis.")
-
-
-
 
 # Footer
 st.sidebar.title("Connect with Me")
