@@ -221,9 +221,6 @@ if st.sidebar.checkbox("Video Recommendations"):
                 st.write(f"Video URL: {video[3]}")
 
 
-# Task 4: Connect With Me
-st.sidebar.subheader("Connect With Me")
-st.sidebar.info("Have feedback or questions? Feel free to connect with me!")
 
 # Main Interface Paragraphs
 st.markdown(
