@@ -104,27 +104,36 @@ def get_video_recommendations(topic, max_results=5):
 def get_video_comments(video_id):
     try:
         comments = []
-        results = youtube.commentThreads().list(
+        # Check if comments are enabled
+        video_info = youtube.videos().list(
             part="snippet",
-            videoId=video_id,
-            textFormat="plainText",
-            maxResults=100
+            id=video_id
         ).execute()
 
-        while "items" in results:
-            for item in results["items"]:
-                comment = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
-                comments.append(comment)
-            if "nextPageToken" in results:
-                results = youtube.commentThreads().list(
-                    part="snippet",
-                    videoId=video_id,
-                    textFormat="plainText",
-                    maxResults=100,
-                    pageToken=results["nextPageToken"]
-                ).execute()
-            else:
-                break
+        if "items" in video_info and "comments" in video_info["items"][0]["snippet"]:
+            results = youtube.commentThreads().list(
+                part="snippet",
+                videoId=video_id,
+                textFormat="plainText",
+                maxResults=100
+            ).execute()
+
+            while "items" in results:
+                for item in results["items"]:
+                    comment = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
+                    comments.append(comment)
+                if "nextPageToken" in results:
+                    results = youtube.commentThreads().list(
+                        part="snippet",
+                        videoId=video_id,
+                        textFormat="plainText",
+                        maxResults=100,
+                        pageToken=results["nextPageToken"]
+                    ).execute()
+                else:
+                    break
+        else:
+            st.warning("Comments are disabled for this video.")
 
         return comments
     except googleapiclient.errors.HttpError as e:
@@ -173,9 +182,9 @@ st.set_page_config(
 st.title("YouTube Analyzer")
 
 # Main interface paragraphs for each task
-st.write(
-    "Welcome to YouTube Analyzer! This tool provides insights into YouTube channels, "
-    "video recommendations, and sentiment analysis of video comments."
+st.markdown(
+    "Welcome to YouTube Analyzer! This interactive tool provides insights into YouTube channels, "
+    "video recommendations, and sentiment analysis of video comments. Use the sidebar to select a task and explore the features."
 )
 
 # Sidebar for user input
@@ -203,6 +212,17 @@ if st.sidebar.checkbox("Channel Analytics"):
         # Additional: Display DataFrame of video details
         st.subheader("All Video Details")
         st.dataframe(videos_df)
+
+        # Additional: Advanced charts
+        st.subheader("Advanced Charts")
+
+        # Time series chart for views
+        fig_views = px.line(videos_df, x="Title", y="Views", title="Views Over Time")
+        st.plotly_chart(fig_views)
+
+        # Bar chart for likes and comments
+        fig_likes_comments = px.bar(videos_df, x="Title", y=["Likes", "Comments"], title="Likes and Comments Comparison")
+        st.plotly_chart(fig_likes_comments)
 
 # Task 2: Video Recommendation based on User's Topic of Interest
 if st.sidebar.checkbox("Video Recommendation"):
