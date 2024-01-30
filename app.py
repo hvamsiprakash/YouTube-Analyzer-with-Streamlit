@@ -561,8 +561,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             st.subheader("Word Cloud")
             st.image(wordcloud.to_image(), caption="Generated Word Cloud", use_container_width=True)
 
-# Main Streamlit app
-st.title("YouTube Analyzer")
+
 
 # Footer
 st.sidebar.title("Connect with Me")
