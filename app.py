@@ -2123,20 +2123,14 @@ if st.sidebar.checkbox("Video Recommendation"):
         # Display Video Recommendations
         st.subheader("Video Recommendations")
         for video in video_recommendations:
-            # st.write(f"**{video[0]}**")
-            # st.write(f"<img src='{video[4]}' alt='Thumbnail' style='max-height: 150px;'>", unsafe_allow_html=True)
-            # st.write(f"Video ID: {video[1]}")
-            # st.write(f"Views: {video[2]}")
-            # st.write(f"Channel: {video[3]}")
-            # st.write(f"Watch Video: [Link]({video[5]})")
-            # st.write("---")
-             st.write(f"**{video[0]}**")
-            st.write(f"<img src='{video[9]}' alt='Thumbnail' style='max-height: 150px;'>", unsafe_allow_html=True)
+            st.write(f"**{video[0]}**")
+            st.write(f"<img src='{video[4]}' alt='Thumbnail' style='max-height: 150px;'>", unsafe_allow_html=True)
             st.write(f"Video ID: {video[1]}")
-            st.write(f"Likes: {video[2]}, Views: {video[3]}, Comments: {video[4]}")
-            st.write(f"Duration: {video[5]}, Upload Date: {video[6]}")
-            st.write(f"Channel: {video[7]}")
-            st.write(f"Watch Video: [Link]({video[8]})")
+            st.write(f"Views: {video[2]}")
+            st.write(f"Channel: {video[3]}")
+            st.write(f"Watch Video: [Link]({video[5]})")
+            st.write("---")
+
 
 # Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
