@@ -1508,24 +1508,6 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Importing necessary libraries and modules
 import streamlit as st
 import googleapiclient.discovery
@@ -1733,7 +1715,11 @@ if st.sidebar.checkbox("Channel Analytics"):
         fig_views.update_layout(height=400, width=800)
         st.plotly_chart(fig_views)
 
-
+        # Bar Chart for Likes and Comments
+        fig_likes_comments = px.bar(videos_df, x="Title", y=["Likes", "Comments"],
+                                    title="Bar Chart for Likes and Comments", barmode="group")
+        fig_likes_comments.update_layout(height=400, width=800)
+        st.plotly_chart(fig_likes_comments)
 
         # Additional: Display DataFrame of video details with clickable URLs
         st.subheader("All Video Details")
@@ -1803,6 +1789,3 @@ st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
     "[GitHub](https://github.com/your-github-profile)"
 )
-
-
-
