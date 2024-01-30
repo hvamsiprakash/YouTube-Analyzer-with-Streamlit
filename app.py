@@ -1749,7 +1749,7 @@ if st.sidebar.checkbox("Channel Analytics"):
         # Additional: Display DataFrame of video details with clickable URLs
         st.subheader("All Video Details")
         videos_df['URL'] = videos_df['URL'].apply(lambda x: f"<a href='{x}' target='_blank'>{x}</a>")
-        st.write(videos_df[['Title', 'Video ID', 'Views', 'Duration', 'Channel', 'URL']].to_html(escape=False), unsafe_allow_html=True)
+        st.write(videos_df[['Title', 'Video ID', 'Views','Channel', 'URL']].to_html(escape=False), unsafe_allow_html=True)
 
 # Task 2: Video Recommendation based on User's Topic of Interest
 if st.sidebar.checkbox("Video Recommendation"):
