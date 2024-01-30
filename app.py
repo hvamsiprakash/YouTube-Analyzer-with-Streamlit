@@ -2125,11 +2125,12 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         # Display Advanced Visualization Charts for Comments
         st.subheader(f"{selected_sentiment.capitalize()} Comments Analysis")
 
-        # Additional: Sentiment Distribution Chart
-        categorized_comments = analyze_and_categorize_comments(filtered_comments)
-        sentiment_df = categorized_comments[selected_sentiment.capitalize()]
-        sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title='Sentiment Analysis')
-        st.plotly_chart(sentiment_chart)
+        # Additional: Polarity Chart for Comments
+        fig_polarity = px.bar(x=list(categorized_comments.keys()), y=[len(categorized_comments[key]) for key in categorized_comments],
+                              labels={'x': 'Sentiment', 'y': 'Count'},
+                              title="Sentiment Distribution of Comments")
+        fig_polarity.update_layout(height=400, width=800)
+        st.plotly_chart(fig_polarity)
 
         # Additional: Display Filtered Comments
         if filtered_comments:
@@ -2138,6 +2139,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
                 st.write(f"- {comment}")
         else:
             st.warning(f"No {selected_sentiment.lower()} comments found.")
+
 
 # Footer
 st.sidebar.title("Connect with Me")
