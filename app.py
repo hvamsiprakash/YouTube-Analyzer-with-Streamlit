@@ -425,7 +425,6 @@ def get_video_comments(video_id):
         return []
 
 # Function to generate word cloud from comments
-
 def generate_word_cloud(comments):
     try:
         if not comments:
@@ -442,6 +441,9 @@ def generate_word_cloud(comments):
         st.image(wordcloud.to_image(), caption="Generated Word Cloud", use_container_width=True)
     except Exception as e:
         st.error(f"Error generating word cloud: {e}")
+
+
+
 
 
 
