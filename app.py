@@ -1526,8 +1526,6 @@
 
 
 
-
-
 # Importing necessary libraries and modules
 import streamlit as st
 import googleapiclient.discovery
@@ -1803,5 +1801,6 @@ st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
     "[GitHub](https://github.com/your-github-profile)"
 )
+
 
 
