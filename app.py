@@ -2121,22 +2121,22 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity < 0]
 
         # Analyze and categorize comments sentiment
-        categorized_comments = analyze_and_categorize_comments(filtered_comments)
+        categorized_comments_sentiment = analyze_and_categorize_comments(filtered_comments)
 
-        # Additional: Polarity Chart for Comments
-        fig_polarity = px.bar(x=list(categorized_comments.keys()), y=[len(categorized_comments[key]) for key in categorized_comments],
-                              labels={'x': 'Sentiment', 'y': 'Count'},
-                              title="Sentiment Distribution of Comments")
-        fig_polarity.update_layout(height=400, width=800)
-        st.plotly_chart(fig_polarity)
+        # Display sentiment distribution chart
+        sentiment_df = []
+        for sentiment, sentiment_comments in categorized_comments_sentiment.items():
+            sentiment_df.extend([(sentiment, comment[1], comment[2]) for comment in sentiment_comments])
 
-        # Additional: Display Filtered Comments
-        if filtered_comments:
-            st.subheader(f"{selected_sentiment.capitalize()} Comments")
-            for comment in filtered_comments:
-                st.write(f"- {comment}")
-        else:
-            st.warning(f"No {selected_sentiment.lower()} comments found.")
+        sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title='Sentiment Analysis')
+        st.plotly_chart(sentiment_chart)
+
+        # Display categorized comments
+        for sentiment, sentiment_comments in categorized_comments_sentiment.items():
+            st.subheader(sentiment)
+            for comment in sentiment_comments:
+                st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
+                st.write(f"  {comment[0]}")
 
 
 # Footer
