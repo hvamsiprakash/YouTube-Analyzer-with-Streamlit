@@ -279,13 +279,11 @@
 # )
 
 
-
 # Importing necessary libraries and modules
 import streamlit as st
 import googleapiclient.discovery
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 from wordcloud import WordCloud
 from textblob import TextBlob
 
@@ -442,7 +440,7 @@ def generate_word_cloud(comments):
         return None
 
 # Function to analyze and categorize comments sentiment
-def analyze_and_categorize_comments(comments, sentiment_choice='all'):
+def analyze_and_categorize_comments(comments, sentiment_choice):
     try:
         categorized_comments = {'Positive': 0, 'Neutral': 0, 'Negative': 0}
 
@@ -460,6 +458,26 @@ def analyze_and_categorize_comments(comments, sentiment_choice='all'):
     except Exception as e:
         st.error(f"Error analyzing comments: {e}")
         return {'Positive': 0, 'Neutral': 0, 'Negative': 0}
+
+# Function to display advanced visualization charts for sentiment analysis
+def display_sentiment_charts(comments, sentiment_choice):
+    try:
+        # Additional: Dot Chart for Sentiments
+        sentiment_data = analyze_and_categorize_comments(comments, sentiment_choice)
+        fig_dot_chart = px.scatter(x=list(sentiment_data.keys()), y=list(sentiment_data.values()),
+                                   labels={'x': 'Sentiment', 'y': 'Count'},
+                                   title="Dot Chart for Sentiment Distribution",
+                                   size=[10, 20, 30])  # Adjust size based on your preference
+
+        # Additional: Display DataFrame of comments
+        st.subheader("Comments")
+        st.write(pd.DataFrame({'Comments': comments}))
+
+        # Display Dot Chart
+        st.subheader("Dot Chart for Sentiment Distribution")
+        st.plotly_chart(fig_dot_chart)
+    except Exception as e:
+        st.error(f"Error displaying sentiment charts: {e}")
 
 # Main Streamlit app
 st.title("YouTube Analyzer")
@@ -502,7 +520,7 @@ if st.sidebar.checkbox("Channel Analytics"):
         st.plotly_chart(fig_likes_comments)
 
         # Additional: Polarity Chart for Comments
-        categorized_comments = analyze_and_categorize_comments(videos_df["Comments"].apply(str), 'all')
+        categorized_comments = analyze_and_categorize_comments(videos_df["Comments"].apply(str))
         fig_polarity = px.bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
                               labels={'x': 'Sentiment', 'y': 'Count'},
                               title="Sentiment Distribution of Comments")
@@ -511,7 +529,7 @@ if st.sidebar.checkbox("Channel Analytics"):
 
         # Additional: Display DataFrame of video details with clickable URLs
         st.subheader("All Video Details")
-        videos_df['URL'] = videos_df['URL'].apply(lambda x: f'<a href="{x}" target="_blank">Link</a>')
+        videos_df['URL'] = videos_df['URL'].apply(lambda x: x)
         st.write(videos_df, unsafe_allow_html=True)
 
 # Task 2: Video Recommendation based on User's Topic of Interest
@@ -536,19 +554,13 @@ if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
     video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
 
-    # Choose the type of comments for sentiment analysis
-    sentiment_choice = st.sidebar.selectbox("Select the type of comments for sentiment analysis", ['all', 'positive', 'neutral', 'negative'])
+    sentiment_choice = st.sidebar.selectbox("Select Sentiment to Analyze", ["Positive", "Neutral", "Negative"])
 
     if st.sidebar.button("Analyze Sentiments and Generate Word Cloud"):
         comments_sentiment = get_video_comments(video_id_sentiment)
 
-        # Filter comments based on user choice
-        if sentiment_choice == 'positive':
-            comments_sentiment = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity > 0]
-        elif sentiment_choice == 'neutral':
-            comments_sentiment = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity == 0]
-        elif sentiment_choice == 'negative':
-            comments_sentiment = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity < 0]
+        # Display advanced visualization charts for sentiment analysis
+        display_sentiment_charts(comments_sentiment, sentiment_choice)
 
         # Generate Word Cloud
         wordcloud = generate_word_cloud(comments_sentiment)
@@ -556,34 +568,21 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             st.subheader("Word Cloud")
             st.image(wordcloud.to_image(), caption="Generated Word Cloud", use_container_width=True)
 
-            # Advanced Visualization Charts for Sentiment Analysis
-            st.subheader("Advanced Visualization Charts for Sentiment Analysis")
-
-            # Dot Chart for Sentiment Distribution
-            fig_dot_chart = px.scatter(categorized_comments, x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
-                                       title="Dot Chart for Sentiment Distribution", labels={'x': 'Sentiment', 'y': 'Count'})
-            fig_dot_chart.update_layout(height=400, width=800)
-            st.plotly_chart(fig_dot_chart)
-
-            # Additional: Bar Chart for Sentiment Distribution
-            fig_sentiment_bar = px.bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
-                                       labels={'x': 'Sentiment', 'y': 'Count'},
-                                       title="Sentiment Distribution of Comments (Bar Chart)")
-            fig_sentiment_bar.update_layout(height=400, width=800)
-            st.plotly_chart(fig_sentiment_bar)
+            # Analyze and Categorize Comments
+            categorized_comments = analyze_and_categorize_comments(comments_sentiment, sentiment_choice)
 
             # Display Sentimental Analysis Results
             st.subheader("Sentimental Analysis Results")
             for sentiment, count in categorized_comments.items():
                 st.write(f"**{sentiment} Sentiments:** {count}")
 
-            # Display the comments based on user choice
-            st.subheader(f"Comments ({sentiment_choice.capitalize()} Sentiments)")
-            st.write(comments_sentiment)
-
 # Footer
 st.sidebar.title("Connect with Me")
 st.sidebar.markdown(
+    "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
+    "[GitHub](https://github.com/your-github-profile)"
+)
+
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
     "[GitHub](https://github.com/your-github-profile)"
 )
