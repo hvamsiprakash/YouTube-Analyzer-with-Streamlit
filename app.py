@@ -7,10 +7,15 @@ from wordcloud import WordCloud
 from textblob import TextBlob
 
 # Set your YouTube Data API key here
-YOUTUBE_API_KEY = "AIzaSyDuuUZbI7ToC7iuweYJ1MiNXAS83Goj_Cc"
+YOUTUBE_API_KEY = "AIzaSyC1vKniA_REYpyqKYYnpssBffmvbuPT8Ks"
 
 # Initialize the YouTube Data API client
 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+
+# Function to handle API errors
+def handle_api_error(e, message):
+    st.error(f"{message}: {e}")
+    return None
 
 # Function to get channel analytics
 def get_channel_analytics(channel_id):
@@ -38,8 +43,7 @@ def get_channel_analytics(channel_id):
 
         return channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments, videos_df
     except googleapiclient.errors.HttpError as e:
-        st.error(f"Error fetching channel analytics: {e}")
-        return None, None, None, None, None, None, None, None, None
+        return handle_api_error(e, "Error fetching channel analytics")
 
 # Function to fetch all video details for a channel
 def get_all_video_details(channel_id):
@@ -73,8 +77,7 @@ def get_all_video_details(channel_id):
         videos_df = pd.DataFrame(video_details, columns=["Title", "Views", "Likes", "Comments", "URL"])
         return videos_df
     except googleapiclient.errors.HttpError as e:
-        st.error(f"Error fetching video details: {e}")
-        return pd.DataFrame(columns=["Title", "Views", "Likes", "Comments", "URL"])
+        return handle_api_error(e, "Error fetching video details")
 
 # Function to get video recommendations based on user's topic
 def get_video_recommendations(topic, max_results=5):
@@ -107,8 +110,7 @@ def get_video_recommendations(topic, max_results=5):
 
         return video_details
     except googleapiclient.errors.HttpError as e:
-        st.error(f"Error fetching video recommendations: {e}")
-        return None
+        return handle_api_error(e, "Error fetching video recommendations")
 
 # Function to get video comments
 def get_video_comments(video_id):
@@ -140,8 +142,7 @@ def get_video_comments(video_id):
 
         return comments
     except googleapiclient.errors.HttpError as e:
-        st.error(f"Error fetching comments: {e}")
-        return []
+        return handle_api_error(e, "Error fetching comments")
 
 # Function to generate word cloud from comments
 def generate_word_cloud(comments):
@@ -155,8 +156,7 @@ def generate_word_cloud(comments):
 
         return wordcloud
     except Exception as e:
-        st.error(f"Error generating word cloud: {e}")
-        return None
+        return handle_api_error(e, "Error generating word cloud")
 
 # Function to analyze and categorize comments sentiment
 def analyze_and_categorize_comments(comments):
@@ -175,8 +175,7 @@ def analyze_and_categorize_comments(comments):
 
         return categorized_comments
     except Exception as e:
-        st.error(f"Error analyzing comments: {e}")
-        return {'Positive': 0, 'Neutral': 0, 'Negative': 0}
+        return handle_api_error(e, "Error analyzing comments")
 
 # Main Streamlit app
 st.title("YouTube Analyzer")
