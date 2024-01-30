@@ -205,7 +205,7 @@ if st.sidebar.checkbox("Channel Analytics"):
         st.write(f"**Total Comments:** {total_comments}")
 
         # Advanced Charts for Channel Analytics
-        st.subheader("Analytics Charts")
+        st.subheader("Advanced Analytics Charts")
 
         # Time Series Chart for Views
         fig_views = px.line(videos_df, x="Title", y="Views", title="Time Series Chart for Views")
@@ -281,16 +281,11 @@ if st.sidebar.checkbox("Sentimental Analysis"):
 
 
 
-# Footer
-st.sidebar.title("Connect with Me")
-st.sidebar.markdown(
-    "[LinkedIn](https://www.linkedin.com/in/hvamsi/) | "
-    "[GitHub](https://github.com/hvamsiprakash)"
-)
-
 # Display the app
 st.set_page_config(page_title="YouTube Analyzer", page_icon=":movie_camera:", layout="wide")
 st.title("YouTube Analyzer")
+
+
 
 # Run the app
 if __name__ == "__main__":
