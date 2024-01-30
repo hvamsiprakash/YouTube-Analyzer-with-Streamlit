@@ -5,6 +5,8 @@ import pandas as pd
 import plotly.express as px
 from wordcloud import WordCloud
 from textblob import TextBlob
+import matplotlib.pyplot as plt
+from io import BytesIO
 
 # Set your YouTube Data API key here
 YOUTUBE_API_KEY = "AIzaSyC1vKniA_REYpyqKYYnpssBffmvbuPT8Ks"
@@ -38,10 +40,7 @@ def get_channel_analytics(channel_id):
         total_likes = int(statistics_info.get("likeCount", 0))
         total_comments = int(statistics_info.get("commentCount", 0))
 
-        # Fetch all video details for the dataframe
-        videos_df = get_all_video_details(channel_id)
-
-        return channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments, videos_df
+        return channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments
     except googleapiclient.errors.HttpError as e:
         return handle_api_error(e, "Error fetching channel analytics")
 
@@ -94,7 +93,6 @@ def get_video_recommendations(topic, max_results=5):
         for item in response.get("items", []):
             video_id = item["id"]["videoId"]
             title = item["snippet"]["title"]
-            views = item["snippet"]["viewCount"]
             url = f"https://www.youtube.com/watch?v={video_id}"
 
             # Use a separate request to get video statistics
@@ -104,9 +102,9 @@ def get_video_recommendations(topic, max_results=5):
             ).execute()
 
             statistics_info = video_info.get("items", [])[0]["statistics"]
-            likes = int(statistics_info.get("likeCount", 0))
+            views = int(statistics_info.get("viewCount", 0))
 
-            video_details.append((title, views, likes, url))
+            video_details.append((title, views, url))
 
         return video_details
     except googleapiclient.errors.HttpError as e:
@@ -190,7 +188,7 @@ if st.sidebar.checkbox("Channel Analytics"):
     channel_id_analytics = st.sidebar.text_input("Enter Channel ID for Analytics", value="UC4JX40jDee_tINbkjycV4Sg")
 
     if st.sidebar.button("Get Channel Analytics"):
-        channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments, videos_df = get_channel_analytics(channel_id_analytics)
+        channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments = get_channel_analytics(channel_id_analytics)
 
         # Display Channel Overview
         st.subheader("Channel Overview")
@@ -202,33 +200,6 @@ if st.sidebar.checkbox("Channel Analytics"):
         st.write(f"**Total Views:** {total_views}")
         st.write(f"**Total Likes:** {total_likes}")
         st.write(f"**Total Comments:** {total_comments}")
-
-        # Advanced Charts for Channel Analytics
-        st.subheader("Advanced Analytics Charts")
-
-        # Time Series Chart for Views
-        fig_views = px.line(videos_df, x="Title", y="Views", title="Time Series Chart for Views")
-        fig_views.update_layout(height=400, width=800)
-        st.plotly_chart(fig_views)
-
-        # Bar Chart for Likes and Comments
-        fig_likes_comments = px.bar(videos_df, x="Title", y=["Likes", "Comments"],
-                                    title="Bar Chart for Likes and Comments", barmode="group")
-        fig_likes_comments.update_layout(height=400, width=800)
-        st.plotly_chart(fig_likes_comments)
-
-        # Additional: Polarity Chart for Comments
-        categorized_comments = analyze_and_categorize_comments(videos_df["Comments"].apply(str))
-        fig_polarity = px.bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
-                              labels={'x': 'Sentiment', 'y': 'Count'},
-                              title="Sentiment Distribution of Comments")
-        fig_polarity.update_layout(height=400, width=800)
-        st.plotly_chart(fig_polarity)
-
-        # Additional: Display DataFrame of video details with clickable URLs
-        st.subheader("All Video Details")
-        videos_df['URL'] = videos_df['URL'].apply(lambda x: f'<a href="{x}" target="_blank">Link</a>')
-        st.write(videos_df, unsafe_allow_html=True)
 
 # Task 2: Video Recommendation based on User's Topic of Interest
 if st.sidebar.checkbox("Video Recommendation"):
@@ -242,9 +213,8 @@ if st.sidebar.checkbox("Video Recommendation"):
         st.subheader("Video Recommendations")
         for video in video_recommendations:
             st.write(f"**Title:** {video[0]}")
-            st.write(f"**Views:** {video[1]}, **Likes:** {video[2]}, **URL:** {video[3]}")
-            thumbnail_url = f"https://img.youtube.com/vi/{video[3].split('=')[1]}/default.jpg"
-            st.image(thumbnail_url, caption=f"Video URL: {video[3]}", use_container_width=True)
+            st.write(f"**Views:** {video[1]}, **URL:** {video[2]}")
+            st.image(video[3], caption=f"Video URL: {video[2]}", use_container_width=True)
             st.write("---")
 
 # Task 3: Sentimental Analysis of Comments with Visualization and Word Cloud
@@ -259,7 +229,10 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         wordcloud = generate_word_cloud(comments_sentiment)
         if wordcloud is not None:
             st.subheader("Word Cloud")
-            st.image(wordcloud.to_image(), caption="Generated Word Cloud", use_container_width=True)
+            plt.figure(figsize=(8, 4))
+            plt.imshow(wordcloud, interpolation='bilinear')
+            plt.axis("off")
+            st.pyplot()
 
             # Analyze and Categorize Comments
             categorized_comments = analyze_and_categorize_comments(comments_sentiment)
@@ -275,3 +248,4 @@ st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
     "[GitHub](https://github.com/your-github-profile)"
 )
+
