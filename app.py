@@ -562,7 +562,6 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             st.image(wordcloud.to_image(), caption="Generated Word Cloud", use_container_width=True)
 
 
-
 # Footer
 st.sidebar.title("Connect with Me")
 st.sidebar.markdown(
