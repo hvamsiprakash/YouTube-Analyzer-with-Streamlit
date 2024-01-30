@@ -1398,7 +1398,7 @@ st.sidebar.subheader("Select a Task")
 # Task 1: Channel Analytics
 if st.sidebar.checkbox("Channel Analytics"):
     st.sidebar.subheader("Channel Analytics")
-    channel_id_analytics = st.sidebar.text_input("Enter Channel ID for Analytics", value="YOUR_CHANNEL_ID")
+    channel_id_analytics = st.sidebar.text_input("Enter Channel ID for Analytics", value="")
 
     if st.sidebar.button("Get Channel Analytics"):
         channel_title, description, published_at, country, total_videos, total_views, videos_df = get_channel_analytics(channel_id_analytics)
@@ -1448,7 +1448,7 @@ if st.sidebar.checkbox("Video Recommendation"):
 # Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
-    video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
+    video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="")
 
     # Allow the user to choose the type of comments
     selected_sentiment = st.sidebar.selectbox("Select Comment Type", ["Positive", "Neutral", "Negative"])
