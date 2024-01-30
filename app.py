@@ -279,6 +279,7 @@
 # )
 
 # Importing necessary libraries and modules
+import matplotlib.pyplot as plt
 import streamlit as st
 import googleapiclient.discovery
 import pandas as pd
@@ -431,12 +432,21 @@ def generate_word_cloud(comments):
             return None
 
         text = " ".join(comments)
+
+        # Generate WordCloud
         wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
 
-        return wordcloud
+        # Display WordCloud using matplotlib
+        st.subheader("Word Cloud")
+        fig, ax = plt.subplots()
+        ax.imshow(wordcloud, interpolation='bilinear')
+        ax.axis('off')
+
+        # Show WordCloud in Streamlit
+        st.pyplot(fig)
     except Exception as e:
         st.error(f"Error generating word cloud: {e}")
-        return None
+
 
 # Function to analyze and categorize comments sentiment
 def analyze_and_categorize_comments(comments):
