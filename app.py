@@ -1874,8 +1874,6 @@ import googleapiclient.discovery
 import pandas as pd
 import plotly.express as px
 from textblob import TextBlob
-from wordcloud import WordCloud
-import matplotlib.pyplot as plt
 
 # Set your YouTube Data API key here
 YOUTUBE_API_KEY = "AIzaSyDGIngwgg2bh5NFaoD53ccwtVY_ObXcaIQ"
@@ -1941,13 +1939,13 @@ def get_all_video_details(channel_id):
             channel_name = snippet_info.get("channelTitle", "N/A")
             thumbnail_url = snippet_info.get("thumbnails", {}).get("default", {}).get("url", "N/A")
 
-            video_details.append((title, video_id, likes, views, comments,upload_date, channel_name, url))
+            video_details.append((title, video_id, likes, views, comments, upload_date, channel_name, url))
 
-        videos_df = pd.DataFrame(video_details, columns=["Title", "Video ID", "Likes", "Views", "Comments","Upload Date", "Channel", "URL"])
+        videos_df = pd.DataFrame(video_details, columns=["Title", "Video ID", "Likes", "Views", "Comments", "Upload Date", "Channel", "URL"])
         return videos_df
     except googleapiclient.errors.HttpError as e:
         st.error(f"Error fetching video details: {e}")
-        return pd.DataFrame(columns=["Title", "Video ID", "Likes", "Views", "Comments","Upload Date", "Channel", "URL"])
+        return pd.DataFrame(columns=["Title", "Video ID", "Likes", "Views", "Comments", "Upload Date", "Channel", "URL"])
 
 # Function to get video recommendations based on user's topic
 def get_video_recommendations(topic, max_results=10):
@@ -2019,16 +2017,6 @@ def get_video_comments(video_id):
         st.error(f"Error fetching comments: {e}")
         return []
 
-# Function to generate word cloud from comments
-def generate_word_cloud(comments):
-    try:
-        text = ' '.join(comments)
-        wordcloud = WordCloud(width=800, height=400, random_state=21, max_font_size=110, background_color='white').generate(text)
-        return wordcloud
-    except Exception as e:
-        st.error(f"Error generating word cloud: {e}")
-        return None
-
 # Function to analyze and categorize comments sentiment
 def analyze_and_categorize_comments(comments):
     try:
@@ -2037,12 +2025,16 @@ def analyze_and_categorize_comments(comments):
         for comment in comments:
             analysis = TextBlob(comment)
             # Classify the polarity of the comment
-            if analysis.sentiment.polarity > 0:
-                categorized_comments['Positive'].append((comment, analysis.sentiment.polarity, analysis.sentiment.subjectivity))
-            elif analysis.sentiment.polarity == 0:
-                categorized_comments['Neutral'].append((comment, analysis.sentiment.polarity, analysis.sentiment.subjectivity))
+            polarity = analysis.sentiment.polarity
+            subjectivity = analysis.sentiment.subjectivity
+
+            # Categorize the comment based on polarity
+            if polarity > 0:
+                categorized_comments['Positive'].append((comment, polarity, subjectivity))
+            elif polarity == 0:
+                categorized_comments['Neutral'].append((comment, polarity, subjectivity))
             else:
-                categorized_comments['Negative'].append((comment, analysis.sentiment.polarity, analysis.sentiment.subjectivity))
+                categorized_comments['Negative'].append((comment, polarity, subjectivity))
 
         return categorized_comments
     except Exception as e:
@@ -2100,7 +2092,7 @@ if st.sidebar.checkbox("Channel Analytics"):
         # Additional: Display DataFrame of video details with clickable URLs
         st.subheader("All Video Details")
         videos_df['URL'] = videos_df['URL'].apply(lambda x: f"<a href='{x}' target='_blank'>{x}</a>")
-        st.write(videos_df[['Title', 'Video ID', 'Likes', 'Views', 'Comments','Upload Date', 'Channel', 'URL']].to_html(escape=False), unsafe_allow_html=True)
+        st.write(videos_df[['Title', 'Video ID', 'Likes', 'Views', 'Comments', 'Upload Date', 'Channel', 'URL']].to_html(escape=False), unsafe_allow_html=True)
 
 # Task 2: Video Recommendation based on User's Topic of Interest
 if st.sidebar.checkbox("Video Recommendation"):
@@ -2143,20 +2135,11 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         # Display Advanced Visualization Charts for Comments
         st.subheader(f"{selected_sentiment.capitalize()} Comments Analysis")
 
-        # Additional: Word Cloud
-        st.subheader(f"Word Cloud for {selected_sentiment.capitalize()} Comments")
-        wordcloud = generate_word_cloud(filtered_comments)
-        if wordcloud:
-            plt.figure(figsize=(10, 5))
-            plt.imshow(wordcloud, interpolation='bilinear')
-            plt.axis('off')
-            st.pyplot(plt)
-
         # Additional: Sentiment Distribution Chart
         categorized_comments = analyze_and_categorize_comments(filtered_comments)
         sentiment_df = []
         for sentiment, sentiment_comments in categorized_comments[selected_sentiment.capitalize()]:
-            sentiment_df.extend([(sentiment, sentiment_comments[1], sentiment_comments[2])])
+            sentiment_df.extend([(sentiment, sentiment_comments[0], sentiment_comments[1])])
 
         sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title='Sentiment Analysis')
         st.plotly_chart(sentiment_chart)
@@ -2182,5 +2165,6 @@ st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
     "[GitHub](https://github.com/your-github-profile)"
 )
+
 
 
