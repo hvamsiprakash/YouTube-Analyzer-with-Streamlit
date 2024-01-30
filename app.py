@@ -7,15 +7,10 @@ from wordcloud import WordCloud
 from textblob import TextBlob
 
 # Set your YouTube Data API key here
-YOUTUBE_API_KEY = "AIzaSyC1vKniA_REYpyqKYYnpssBffmvbuPT8Ks"
+YOUTUBE_API_KEY = "YOUR_YOUTUBE_API_KEY"
 
 # Initialize the YouTube Data API client
 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
-
-# Function to handle API errors
-def handle_api_error(e, message):
-    st.error(f"{message}: {e}")
-    return None
 
 # Function to get channel analytics
 def get_channel_analytics(channel_id):
@@ -43,7 +38,8 @@ def get_channel_analytics(channel_id):
 
         return channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments, videos_df
     except googleapiclient.errors.HttpError as e:
-        return handle_api_error(e, "Error fetching channel analytics")
+        st.error(f"Error fetching channel analytics: {e}")
+        return None, None, None, None, None, None, None, None, None
 
 # Function to fetch all video details for a channel
 def get_all_video_details(channel_id):
@@ -77,7 +73,8 @@ def get_all_video_details(channel_id):
         videos_df = pd.DataFrame(video_details, columns=["Title", "Views", "Likes", "Comments", "URL"])
         return videos_df
     except googleapiclient.errors.HttpError as e:
-        return handle_api_error(e, "Error fetching video details")
+        st.error(f"Error fetching video details: {e}")
+        return pd.DataFrame(columns=["Title", "Views", "Likes", "Comments", "URL"])
 
 # Function to get video recommendations based on user's topic
 def get_video_recommendations(topic, max_results=5):
@@ -94,6 +91,7 @@ def get_video_recommendations(topic, max_results=5):
         for item in response.get("items", []):
             video_id = item["id"]["videoId"]
             title = item["snippet"]["title"]
+            views = item["snippet"]["viewCount"]
             url = f"https://www.youtube.com/watch?v={video_id}"
 
             # Use a separate request to get video statistics
@@ -103,13 +101,14 @@ def get_video_recommendations(topic, max_results=5):
             ).execute()
 
             statistics_info = video_info.get("items", [])[0]["statistics"]
-            views = int(statistics_info.get("viewCount", 0))
+            likes = int(statistics_info.get("likeCount", 0))
 
-            video_details.append((title, views, url))
+            video_details.append((title, views, likes, url))
 
         return video_details
     except googleapiclient.errors.HttpError as e:
-        return handle_api_error(e, "Error fetching video recommendations")
+        st.error(f"Error fetching video recommendations: {e}")
+        return None
 
 # Function to get video comments
 def get_video_comments(video_id):
@@ -141,7 +140,8 @@ def get_video_comments(video_id):
 
         return comments
     except googleapiclient.errors.HttpError as e:
-        return handle_api_error(e, "Error fetching comments")
+        st.error(f"Error fetching comments: {e}")
+        return []
 
 # Function to generate word cloud from comments
 def generate_word_cloud(comments):
@@ -155,7 +155,8 @@ def generate_word_cloud(comments):
 
         return wordcloud
     except Exception as e:
-        return handle_api_error(e, "Error generating word cloud")
+        st.error(f"Error generating word cloud: {e}")
+        return None
 
 # Function to analyze and categorize comments sentiment
 def analyze_and_categorize_comments(comments):
@@ -174,7 +175,8 @@ def analyze_and_categorize_comments(comments):
 
         return categorized_comments
     except Exception as e:
-        return handle_api_error(e, "Error analyzing comments")
+        st.error(f"Error analyzing comments: {e}")
+        return {'Positive': 0, 'Neutral': 0, 'Negative': 0}
 
 # Main Streamlit app
 st.title("YouTube Analyzer")
@@ -226,7 +228,8 @@ if st.sidebar.checkbox("Channel Analytics"):
 
         # Additional: Display DataFrame of video details with clickable URLs
         st.subheader("All Video Details")
-        videos_df['URL'] = videos_df['URL'].apply(lambda x: f'<a href="{x}" target="_blank">Link</a>')
+        # videos_df['URL'] = videos_df['URL'].apply(lambda x: f'<a href="{x}" target="_blank">Link</a>')
+        videos_df['URL'] = videos_df['URL'].apply(lambda x: x)
         st.write(videos_df, unsafe_allow_html=True)
 
 # Task 2: Video Recommendation based on User's Topic of Interest
