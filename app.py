@@ -2100,6 +2100,8 @@ if st.sidebar.checkbox("Video Recommendation"):
             st.write(f"Watch Video: [Link]({video[5]})")
             st.write("---")
 
+# ... (Previous code remains unchanged)
+
 # Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
@@ -2125,7 +2127,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         # Additional: Sentiment Distribution Chart
         categorized_comments = analyze_and_categorize_comments(filtered_comments)
         sentiment_df = []
-        for sentiment, sentiment_comments in categorized_comments[selected_sentiment.capitalize()].items():
+        for sentiment, sentiment_comments in categorized_comments[selected_sentiment.capitalize()]:
             sentiment_df.extend([(sentiment, comment[1], comment[2]) for comment in sentiment_comments])
 
         sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title='Sentiment Analysis')
@@ -2145,3 +2147,4 @@ st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
     "[GitHub](https://github.com/your-github-profile)"
 )
+
