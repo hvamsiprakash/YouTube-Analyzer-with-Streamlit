@@ -294,6 +294,7 @@ YOUTUBE_API_KEY = "AIzaSyC1vKniA_REYpyqKYYnpssBffmvbuPT8Ks"
 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
 
 # Function to get channel analytics
+# Function to get channel analytics
 def get_channel_analytics(channel_id):
     try:
         response = youtube.channels().list(
@@ -301,8 +302,14 @@ def get_channel_analytics(channel_id):
             id=channel_id
         ).execute()
 
-        channel_info = response.get("items", [])[0]["snippet"]
-        statistics_info = response.get("items", [])[0]["statistics"]
+        items = response.get("items", [])
+
+        if not items:
+            st.error(f"No channel found with ID: {channel_id}")
+            return None, None, None, None, None, None, None, None, None
+
+        channel_info = items[0].get("snippet", {})
+        statistics_info = items[0].get("statistics", {})
 
         channel_title = channel_info.get("title", "N/A")
         description = channel_info.get("description", "N/A")
