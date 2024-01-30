@@ -2101,8 +2101,6 @@ if st.sidebar.checkbox("Video Recommendation"):
             st.write("---")
 
 
-# ... (Previous code remains unchanged)
-
 # Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
@@ -2139,7 +2137,6 @@ if st.sidebar.checkbox("Sentimental Analysis"):
                 st.write(f"- {comment}")
         else:
             st.warning(f"No {selected_sentiment.lower()} comments found.")
-
 
 # Footer
 st.sidebar.title("Connect with Me")
