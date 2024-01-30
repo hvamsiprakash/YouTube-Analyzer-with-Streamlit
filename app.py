@@ -2123,9 +2123,6 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         # Analyze and categorize comments sentiment
         categorized_comments = analyze_and_categorize_comments(filtered_comments)
 
-        # Display Advanced Visualization Charts for Comments
-        st.subheader(f"{selected_sentiment.capitalize()} Comments Analysis")
-
         # Additional: Polarity Chart for Comments
         fig_polarity = px.bar(x=list(categorized_comments.keys()), y=[len(categorized_comments[key]) for key in categorized_comments],
                               labels={'x': 'Sentiment', 'y': 'Count'},
