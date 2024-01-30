@@ -589,9 +589,7 @@ import streamlit as st
 import googleapiclient.discovery
 import pandas as pd
 import plotly.express as px
-from wordcloud import WordCloud
 from textblob import TextBlob
-import matplotlib.pyplot as plt
 
 # Set your YouTube Data API key here
 YOUTUBE_API_KEY = "AIzaSyC1vKniA_REYpyqKYYnpssBffmvbuPT8Ks"
@@ -730,21 +728,6 @@ def get_video_comments(video_id):
         st.error(f"Error fetching comments: {e}")
         return []
 
-# Function to generate word cloud from comments
-def generate_word_cloud(comments):
-    try:
-        if not comments:
-            st.warning("No comments to generate a word cloud.")
-            return None
-
-        text = " ".join(comments)
-        wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
-
-        return wordcloud
-    except Exception as e:
-        st.error(f"Error generating word cloud: {e}")
-        return None
-
 # Function to analyze and categorize comments sentiment
 def analyze_and_categorize_comments(comments):
     try:
@@ -835,7 +818,7 @@ if st.sidebar.checkbox("Video Recommendation"):
             st.image(thumbnail_url, caption=f"Video URL: {video[3]}")
             st.write("---")
 
-# Task 3: Sentimental Analysis of Comments with Visualization and Word Cloud
+# Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
     video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
@@ -843,7 +826,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
     # Allow the user to choose the type of comments
     selected_sentiment = st.sidebar.selectbox("Select Comment Type", ["Positive", "Neutral", "Negative"])
 
-    if st.sidebar.button("Analyze Sentiments and Generate Word Cloud"):
+    if st.sidebar.button("Analyze Sentiments"):
         comments_sentiment = get_video_comments(video_id_sentiment)
 
         # Filter comments based on the selected sentiment
@@ -856,26 +839,18 @@ if st.sidebar.checkbox("Sentimental Analysis"):
 
         # Display Advanced Visualization Charts for Comments
         st.subheader(f"{selected_sentiment.capitalize()} Comments Analysis")
-        categorized_comments = analyze_and_categorize_comments(filtered_comments)
 
-        # Display Sentimental Analysis Results
-        for sentiment, count in categorized_comments.items():
-            st.write(f"**{sentiment} Sentiments:** {count}")
+        # Additional: Dynamic Visualization Charts based on the type of comments
+        if filtered_comments:
+            # You can customize and add more charts as needed
+            # For example, let's add a bar chart for the length of comments
+            comments_df = pd.DataFrame({"Comments": filtered_comments})
+            comments_df['Length'] = comments_df['Comments'].apply(len)
 
-        # Generate and Display Word Cloud using Matplotlib
-        wordcloud = generate_word_cloud(filtered_comments)
-        if wordcloud:
-            st.subheader(f"Word Cloud for {selected_sentiment.capitalize()} Comments")
-            plt.figure(figsize=(10, 5))
-            plt.imshow(wordcloud, interpolation='bilinear')
-            plt.axis('off')
-            st.pyplot(plt)
+            fig_length_distribution = px.histogram(comments_df, x='Length', title='Comment Length Distribution',
+                                                   labels={'Length': 'Comment Length'})
+            st.plotly_chart(fig_length_distribution)
 
-        # Additional: Display DataFrame of comments
-        st.subheader("All Comments")
-        comments_df = pd.DataFrame({"Comments": filtered_comments})
-        st.write(comments_df)
-
-
-
-
+            # Additional: Display DataFrame of comments
+            st.subheader("All Comments")
+            st.write(comments_df)
