@@ -278,7 +278,6 @@
 #     "[GitHub](https://github.com/your-github-profile)"
 # )
 
-
 # Importing necessary libraries and modules
 import streamlit as st
 import googleapiclient.discovery
@@ -293,8 +292,154 @@ YOUTUBE_API_KEY = "AIzaSyC1vKniA_REYpyqKYYnpssBffmvbuPT8Ks"
 # Initialize the YouTube Data API client
 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
 
+# Function to fetch all video details for a channel
+def get_all_video_details(channel_id):
+    try:
+        response = youtube.search().list(
+            channelId=channel_id,
+            type="video",
+            part="id,snippet",
+            maxResults=50
+        ).execute()
+
+        video_details = []
+        for item in response.get("items", []):
+            video_id = item["id"]["videoId"]
+            title = item["snippet"]["title"]
+            url = f"https://www.youtube.com/watch?v={video_id}"
+
+            # Use a separate request to get video statistics
+            video_info = youtube.videos().list(
+                part="statistics",
+                id=video_id
+            ).execute()
+
+            statistics_info = video_info.get("items", [])[0]["statistics"]
+            views = int(statistics_info.get("viewCount", 0))
+            likes = int(statistics_info.get("likeCount", 0))
+            comments = int(statistics_info.get("commentCount", 0))
+
+            video_details.append((title, views, likes, comments, url))
+
+        videos_df = pd.DataFrame(video_details, columns=["Title", "Views", "Likes", "Comments", "URL"])
+        return videos_df
+    except googleapiclient.errors.HttpError as e:
+        st.error(f"Error fetching video details: {e}")
+        return pd.DataFrame(columns=["Title", "Views", "Likes", "Comments", "URL"])
+
+# Function to get channel analytics
+def get_channel_analytics(channel_id):
+    try:
+        response = youtube.channels().list(
+            part="snippet,statistics",
+            id=channel_id
+        ).execute()
+
+        channel_info = response.get("items", [])[0]["snippet"]
+        statistics_info = response.get("items", [])[0]["statistics"]
+
+        channel_title = channel_info.get("title", "N/A")
+        description = channel_info.get("description", "N/A")
+        published_at = channel_info.get("publishedAt", "N/A")
+        country = channel_info.get("country", "N/A")
+
+        total_videos = int(statistics_info.get("videoCount", 0))
+        total_views = int(statistics_info.get("viewCount", 0))
+        total_likes = int(statistics_info.get("likeCount", 0))
+        total_comments = int(statistics_info.get("commentCount", 0))
+
+        # Fetch all video details for the dataframe
+        videos_df = get_all_video_details(channel_id)
+
+        return channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments, videos_df
+    except googleapiclient.errors.HttpError as e:
+        st.error(f"Error fetching channel analytics: {e}")
+        return None, None, None, None, None, None, None, None, None
+
+# Function to get video recommendations based on user's topic
+def get_video_recommendations(topic, max_results=5):
+    try:
+        response = youtube.search().list(
+            q=topic,
+            type="video",
+            part="id,snippet",
+            maxResults=max_results,
+            order="relevance"
+        ).execute()
+
+        video_details = []
+        for item in response.get("items", []):
+            video_id = item["id"]["videoId"]
+            title = item["snippet"]["title"]
+            url = f"https://www.youtube.com/watch?v={video_id}"
+
+            # Use a separate request to get video statistics
+            video_info = youtube.videos().list(
+                part="statistics",
+                id=video_id
+            ).execute()
+
+            statistics_info = video_info.get("items", [])[0]["statistics"]
+            views = int(statistics_info.get("viewCount", 0))
+            likes = int(statistics_info.get("likeCount", 0))
+
+            video_details.append((title, views, likes, url))
+
+        return video_details
+    except googleapiclient.errors.HttpError as e:
+        st.error(f"Error fetching video recommendations: {e}")
+        return None
+
+# Function to get video comments
+def get_video_comments(video_id):
+    try:
+        comments = []
+        results = youtube.commentThreads().list(
+            part="snippet",
+            videoId=video_id,
+            textFormat="plainText",
+            maxResults=100
+        ).execute()
+
+        while "items" in results:
+            for item in results["items"]:
+                comment = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
+                comments.append(comment)
+
+            # Get the next set of results
+            if "nextPageToken" in results:
+                results = youtube.commentThreads().list(
+                    part="snippet",
+                    videoId=video_id,
+                    textFormat="plainText",
+                    pageToken=results["nextPageToken"],
+                    maxResults=100
+                ).execute()
+            else:
+                break
+
+        return comments
+    except googleapiclient.errors.HttpError as e:
+        st.error(f"Error fetching comments: {e}")
+        return []
+
+# Function to generate word cloud from comments
+def generate_word_cloud(comments):
+    try:
+        if not comments:
+            st.warning("No comments to generate a word cloud.")
+            return None
+
+        text = " ".join(comments)
+        wordcloud = WordCloud(width=800, height=400, background_color='white').generate(text)
+
+        return wordcloud
+    except Exception as e:
+        st.error(f"Error generating word cloud: {e}")
+        return None
+
 # Function to analyze and categorize comments sentiment
-def analyze_and_categorize_comments(comments, sentiment_choice):
+def analyze_and_categorize_comments(comments, sentiments_choice):
     try:
         categorized_comments = {'Positive': 0, 'Neutral': 0, 'Negative': 0}
 
@@ -415,3 +560,4 @@ st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
     "[GitHub](https://github.com/your-github-profile)"
 )
+
