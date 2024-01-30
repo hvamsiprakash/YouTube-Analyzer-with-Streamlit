@@ -283,6 +283,7 @@ import streamlit as st
 import googleapiclient.discovery
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from wordcloud import WordCloud
 from textblob import TextBlob
 
@@ -291,6 +292,35 @@ YOUTUBE_API_KEY = "AIzaSyC1vKniA_REYpyqKYYnpssBffmvbuPT8Ks"
 
 # Initialize the YouTube Data API client
 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+
+# Function to get channel analytics
+def get_channel_analytics(channel_id):
+    try:
+        response = youtube.channels().list(
+            part="snippet,statistics",
+            id=channel_id
+        ).execute()
+
+        channel_info = response.get("items", [])[0]["snippet"]
+        statistics_info = response.get("items", [])[0]["statistics"]
+
+        channel_title = channel_info.get("title", "N/A")
+        description = channel_info.get("description", "N/A")
+        published_at = channel_info.get("publishedAt", "N/A")
+        country = channel_info.get("country", "N/A")
+
+        total_videos = int(statistics_info.get("videoCount", 0))
+        total_views = int(statistics_info.get("viewCount", 0))
+        total_likes = int(statistics_info.get("likeCount", 0))
+        total_comments = int(statistics_info.get("commentCount", 0))
+
+        # Fetch all video details for the dataframe
+        videos_df = get_all_video_details(channel_id)
+
+        return channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments, videos_df
+    except googleapiclient.errors.HttpError as e:
+        st.error(f"Error fetching channel analytics: {e}")
+        return None, None, None, None, None, None, None, None, None
 
 # Function to fetch all video details for a channel
 def get_all_video_details(channel_id):
@@ -326,35 +356,6 @@ def get_all_video_details(channel_id):
     except googleapiclient.errors.HttpError as e:
         st.error(f"Error fetching video details: {e}")
         return pd.DataFrame(columns=["Title", "Views", "Likes", "Comments", "URL"])
-
-# Function to get channel analytics
-def get_channel_analytics(channel_id):
-    try:
-        response = youtube.channels().list(
-            part="snippet,statistics",
-            id=channel_id
-        ).execute()
-
-        channel_info = response.get("items", [])[0]["snippet"]
-        statistics_info = response.get("items", [])[0]["statistics"]
-
-        channel_title = channel_info.get("title", "N/A")
-        description = channel_info.get("description", "N/A")
-        published_at = channel_info.get("publishedAt", "N/A")
-        country = channel_info.get("country", "N/A")
-
-        total_videos = int(statistics_info.get("videoCount", 0))
-        total_views = int(statistics_info.get("viewCount", 0))
-        total_likes = int(statistics_info.get("likeCount", 0))
-        total_comments = int(statistics_info.get("commentCount", 0))
-
-        # Fetch all video details for the dataframe
-        videos_df = get_all_video_details(channel_id)
-
-        return channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments, videos_df
-    except googleapiclient.errors.HttpError as e:
-        st.error(f"Error fetching channel analytics: {e}")
-        return None, None, None, None, None, None, None, None, None
 
 # Function to get video recommendations based on user's topic
 def get_video_recommendations(topic, max_results=5):
@@ -439,7 +440,7 @@ def generate_word_cloud(comments):
         return None
 
 # Function to analyze and categorize comments sentiment
-def analyze_and_categorize_comments(comments, sentiments_choice):
+def analyze_and_categorize_comments(comments, sentiment_choice):
     try:
         categorized_comments = {'Positive': 0, 'Neutral': 0, 'Negative': 0}
 
@@ -499,7 +500,7 @@ if st.sidebar.checkbox("Channel Analytics"):
         st.plotly_chart(fig_likes_comments)
 
         # Additional: Polarity Chart for Comments
-        categorized_comments = analyze_and_categorize_comments(videos_df["Comments"].apply(str))
+        categorized_comments = analyze_and_categorize_comments(videos_df["Comments"].apply(str), 'all')
         fig_polarity = px.bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
                               labels={'x': 'Sentiment', 'y': 'Count'},
                               title="Sentiment Distribution of Comments")
@@ -533,20 +534,19 @@ if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
     video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
 
-    # User can choose sentiments to display
-    sentiments_choice = st.sidebar.multiselect("Choose sentiments to display", ["Positive", "Neutral", "Negative"], default=["Positive", "Neutral", "Negative"])
+    # Choose the type of comments for sentiment analysis
+    sentiment_choice = st.sidebar.selectbox("Select the type of comments for sentiment analysis", ['all', 'positive', 'neutral', 'negative'])
 
     if st.sidebar.button("Analyze Sentiments and Generate Word Cloud"):
         comments_sentiment = get_video_comments(video_id_sentiment)
 
-        # Analyze and Categorize Comments
-        categorized_comments = analyze_and_categorize_comments(comments_sentiment, sentiments_choice)
-
-        # Display Sentimental Analysis Results
-        st.subheader("Sentimental Analysis Results")
-        for sentiment, count in categorized_comments.items():
-            if sentiment in sentiments_choice:
-                st.write(f"**{sentiment} Sentiments:** {count}")
+        # Filter comments based on user choice
+        if sentiment_choice == 'positive':
+            comments_sentiment = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity > 0]
+        elif sentiment_choice == 'neutral':
+            comments_sentiment = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity == 0]
+        elif sentiment_choice == 'negative':
+            comments_sentiment = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity < 0]
 
         # Generate Word Cloud
         wordcloud = generate_word_cloud(comments_sentiment)
@@ -554,10 +554,40 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             st.subheader("Word Cloud")
             st.image(wordcloud.to_image(), caption="Generated Word Cloud", use_container_width=True)
 
+            # Analyze and Categorize Comments
+            categorized_comments = analyze_and_categorize_comments(comments_sentiment, sentiment_choice)
+
+            # Display Sentimental Analysis Results
+            st.subheader("Sentimental Analysis Results")
+            for sentiment, count in categorized_comments.items():
+                st.write(f"**{sentiment} Sentiments:** {count}")
+
+            # Advanced Visualization Charts for Sentimental Analysis
+            st.subheader("Advanced Visualization Charts for Sentimental Analysis")
+
+            # Pie Chart for Sentiment Distribution
+            fig_sentiment_pie = go.Figure(data=[go.Pie(labels=list(categorized_comments.keys()), values=list(categorized_comments.values()))])
+            fig_sentiment_pie.update_layout(height=400, width=800, title="Sentiment Distribution of Comments (Pie Chart)")
+            st.plotly_chart(fig_sentiment_pie)
+
+            # Bar Chart for Sentiment Distribution
+            fig_sentiment_bar = px.bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
+                                       labels={'x': 'Sentiment', 'y': 'Count'},
+                                       title="Sentiment Distribution of Comments (Bar Chart)")
+            fig_sentiment_bar.update_layout(height=400, width=800)
+            st.plotly_chart(fig_sentiment_bar)
+
+            # Display the selected comments
+            st.subheader("Selected Comments")
+            for comment in comments_sentiment:
+                st.write(f"- {comment}")
+
 # Footer
 st.sidebar.title("Connect with Me")
 st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
     "[GitHub](https://github.com/your-github-profile)"
 )
+
+
 
