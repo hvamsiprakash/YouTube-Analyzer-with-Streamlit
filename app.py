@@ -1939,11 +1939,11 @@ def get_all_video_details(channel_id):
 
             video_details.append((title, video_id, views, duration, channel_name, url))
 
-        videos_df = pd.DataFrame(video_details, columns=["Title", "Video ID", "Views", "Duration", "Channel", "URL"])
+        videos_df = pd.DataFrame(video_details, columns=["Title", "Video ID", "Views" ,"Channel", "URL"])
         return videos_df
     except googleapiclient.errors.HttpError as e:
         st.error(f"Error fetching video details: {e}")
-        return pd.DataFrame(columns=["Title", "Video ID", "Views", "Duration", "Channel", "URL"])
+        return pd.DataFrame(columns=["Title", "Video ID", "Views", "Channel", "URL"])
 
 # Function to get video recommendations based on user's topic
 def get_video_recommendations(topic, max_results=10):
@@ -1968,21 +1968,39 @@ def get_video_recommendations(topic, max_results=10):
                 id=video_id
             ).execute()
 
-            statistics_info = video_info.get("items", [])[0]["statistics"]
-            snippet_info = video_info.get("items", [])[0]["snippet"]
-            views = int(statistics_info.get("viewCount", 0))
-            likes = int(statistics_info.get("likeCount", 0))
-            comments = int(statistics_info.get("commentCount", 0))
-            upload_date = snippet_info.get("publishedAt", "N/A")
-            duration = snippet_info.get("duration", "N/A")
-            channel_name = snippet_info.get("channelTitle", "N/A")
+    #         statistics_info = video_info.get("items", [])[0]["statistics"]
+    #         snippet_info = video_info.get("items", [])[0]["snippet"]
+    #         views = int(statistics_info.get("viewCount", 0))
+    #         duration = snippet_info.get("duration", "N/A")
+    #         channel_name = snippet_info.get("channelTitle", "N/A")
 
-            video_details.append((title, video_id, likes, views, comments, duration, upload_date, channel_name, url))
+    #         video_details.append((title, video_id, views, duration, channel_name, url))
+
+    #     return video_details
+    # except googleapiclient.errors.HttpError as e:
+    #     st.error(f"Error fetching video recommendations: {e}")
+    #     return None
+
+            snippet_info = video_info.get("items", [])[0]["snippet"]
+            statistics_info = video_info.get("items", [])[0]["statistics"]
+            content_details = video_info.get("items", [])[0].get("contentDetails", {})
+
+            likes = int(statistics_info.get("likeCount", 0))
+            views = int(statistics_info.get("viewCount", 0))
+            comments = int(statistics_info.get("commentCount", 0))
+            duration = content_details.get("duration", "N/A")
+            upload_date = snippet_info.get("publishedAt", "N/A")
+            channel_title = snippet_info.get("channelTitle", "N/A")
+            thumbnail_url = snippet_info.get("thumbnails", {}).get("default", {}).get("url", "N/A")
+
+            link = f"https://www.youtube.com/watch?v={video_id}"
+
+            video_details.append((title, video_id, likes, views, comments, duration, upload_date, channel_title, link, thumbnail_url))
 
         return video_details
     except googleapiclient.errors.HttpError as e:
-        st.error(f"Error fetching video recommendations: {e}")
-        return None
+        st.error(f"Error fetching videos: {e}")
+        return []
 
 # Function to get video comments
 def get_video_comments(video_id):
@@ -2092,7 +2110,7 @@ if st.sidebar.checkbox("Channel Analytics"):
         # Additional: Display DataFrame of video details with clickable URLs
         st.subheader("All Video Details")
         videos_df['URL'] = videos_df['URL'].apply(lambda x: f"<a href='{x}' target='_blank'>{x}</a>")
-        st.write(videos_df[['Title', 'Video ID', 'Views', 'Duration', 'Channel', 'URL']].to_html(escape=False), unsafe_allow_html=True)
+        st.write(videos_df[['Title', 'Video ID', 'Views','Channel', 'URL']].to_html(escape=False), unsafe_allow_html=True)
 
 # Task 2: Video Recommendation based on User's Topic of Interest
 if st.sidebar.checkbox("Video Recommendation"):
@@ -2105,14 +2123,20 @@ if st.sidebar.checkbox("Video Recommendation"):
         # Display Video Recommendations
         st.subheader("Video Recommendations")
         for video in video_recommendations:
-            st.write(f"**{video[0]}**")
-            st.write(f"<img src='{video[4]}' alt='Thumbnail' style='max-height: 150px;'>", unsafe_allow_html=True)
+            # st.write(f"**{video[0]}**")
+            # st.write(f"<img src='{video[4]}' alt='Thumbnail' style='max-height: 150px;'>", unsafe_allow_html=True)
+            # st.write(f"Video ID: {video[1]}")
+            # st.write(f"Views: {video[2]}")
+            # st.write(f"Channel: {video[3]}")
+            # st.write(f"Watch Video: [Link]({video[5]})")
+            # st.write("---")
+             st.write(f"**{video[0]}**")
+            st.write(f"<img src='{video[9]}' alt='Thumbnail' style='max-height: 150px;'>", unsafe_allow_html=True)
             st.write(f"Video ID: {video[1]}")
             st.write(f"Likes: {video[2]}, Views: {video[3]}, Comments: {video[4]}")
             st.write(f"Duration: {video[5]}, Upload Date: {video[6]}")
             st.write(f"Channel: {video[7]}")
             st.write(f"Watch Video: [Link]({video[8]})")
-            st.write("---")
 
 # Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
@@ -2145,13 +2169,13 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             plt.axis('off')
             st.pyplot(plt)
 
-        # Additional: Polarity Chart for Comments
-        categorized_comments = analyze_and_categorize_comments(filtered_comments)
-        fig_polarity = px.bar(x=list(categorized_comments.keys()), y=[len(c) for c in categorized_comments.values()],
-                              labels={'x': 'Sentiment', 'y': 'Count'},
-                              title="Sentiment Distribution of Comments")
-        fig_polarity.update_layout(height=400, width=800)
-        st.plotly_chart(fig_polarity)
+        # Additional: Sentiment Distribution Chart
+        sentiment_df = []
+        for sentiment, sentiment_comments in categorized_comments[selected_sentiment.capitalize()]:
+            sentiment_df.extend([(sentiment, comment[1], comment[2]) for comment in sentiment_comments])
+
+        sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title='Sentiment Analysis')
+        st.plotly_chart(sentiment_chart)
 
         # Additional: Display Filtered Comments
         if filtered_comments:
@@ -2167,4 +2191,5 @@ st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
     "[GitHub](https://github.com/your-github-profile)"
 )
+
 
