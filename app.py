@@ -1200,7 +1200,6 @@
 
 
 
-
 # Importing necessary libraries and modules
 import streamlit as st
 import googleapiclient.discovery
@@ -1309,11 +1308,16 @@ def get_video_recommendations(topic, max_results=10):
             ).execute()
 
             statistics_info = video_info.get("items", [])[0]["statistics"]
+            snippet_info = video_info.get("items", [])[0]["snippet"]
             views = int(statistics_info.get("viewCount", 0))
             likes = int(statistics_info.get("likeCount", 0))
-            thumbnail_url = item["snippet"]["thumbnails"]["default"]["url"]
+            comments = int(statistics_info.get("commentCount", 0))
+            duration = snippet_info.get("duration", "N/A")
+            upload_date = snippet_info.get("publishedAt", "N/A")
+            channel_name = snippet_info.get("channelTitle", "N/A")
+            thumbnail_url = snippet_info.get("thumbnails", {}).get("default", {}).get("url", "N/A")
 
-            video_details.append((title, views, likes, url, thumbnail_url))
+            video_details.append((title, video_id, likes, views, comments, duration, upload_date, channel_name, url, thumbnail_url))
 
         return video_details
     except googleapiclient.errors.HttpError as e:
@@ -1461,10 +1465,12 @@ if st.sidebar.checkbox("Video Recommendation"):
         st.subheader("Video Recommendations")
         for video in video_recommendations:
             st.write(f"**{video[0]}**")
-            st.write(f"<img src='{video[4]}' alt='Thumbnail' style='max-height: 150px;'>", unsafe_allow_html=True)
+            st.write(f"<img src='{video[9]}' alt='Thumbnail' style='max-height: 150px;'>", unsafe_allow_html=True)
             st.write(f"Video ID: {video[1]}")
-            st.write(f"Likes: {video[2]}, Views: {video[3]}")
-            st.write(f"Watch Video: [Link]({video[3]})")
+            st.write(f"Likes: {video[2]}, Views: {video[3]}, Comments: {video[4]}")
+            st.write(f"Duration: {video[5]}, Upload Date: {video[6]}")
+            st.write(f"Channel: {video[7]}")
+            st.write(f"Watch Video: [Link]({video[8]})")
             st.write("---")
 
 # Task 3: Sentimental Analysis of Comments with Visualization
@@ -1498,21 +1504,22 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             plt.axis('off')
             st.pyplot(plt)
 
-        # Additional: Sentiment Distribution Chart
-        sentiment_df = []
-        for sentiment, sentiment_comments in categorized_comments[selected_sentiment.capitalize()]:
-            sentiment_df.extend([(sentiment, comment[1], comment[2]) for comment in sentiment_comments])
 
-        sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title='Sentiment Analysis')
-        st.plotly_chart(sentiment_chart)
 
-        # Additional: Display Filtered Comments
+            # Additional: Sentiment Distribution Chart
+            sentiment_df = []
+            for sentiment, sentiment_comments in categorized_comments[selected_sentiment.capitalize()]:
+                sentiment_df.extend([(sentiment, comment[1], comment[2]) for comment in sentiment_comments])
+
+            sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title=f'{selected_sentiment.capitalize()} Sentiment Analysis')
+            st.plotly_chart(sentiment_chart)
+
+        # Display only the chosen comments
+        st.subheader(f"{selected_sentiment.capitalize()} Comments")
         if filtered_comments:
-            st.subheader(f"{selected_sentiment.capitalize()} Comments")
-            for comment in filtered_comments:
-                st.write(f"- {comment}")
+            st.write(filtered_comments)
         else:
-            st.warning(f"No {selected_sentiment.lower()} comments found.")
+            st.info(f"No {selected_sentiment.lower()} comments found.")
 
 # Footer
 st.sidebar.title("Connect with Me")
