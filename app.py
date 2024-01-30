@@ -2100,12 +2100,11 @@ if st.sidebar.checkbox("Video Recommendation"):
             st.write(f"Watch Video: [Link]({video[5]})")
             st.write("---")
 
-# ... (Previous code remains unchanged)
 
 # Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
-    video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
+    video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="")
 
     # Allow the user to choose the type of comments
     selected_sentiment = st.sidebar.selectbox("Select Comment Type", ["Positive", "Neutral", "Negative"])
@@ -2128,10 +2127,17 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         categorized_comments = analyze_and_categorize_comments(filtered_comments)
         sentiment_df = []
         for sentiment, sentiment_comments in categorized_comments[selected_sentiment.capitalize()]:
-            sentiment_df.extend([(sentiment, comment[1], comment[2]) for comment in sentiment_comments])
+            sentiment_df.extend([(sentiment, sentiment_comments[1], sentiment_comments[2])])
 
         sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title='Sentiment Analysis')
         st.plotly_chart(sentiment_chart)
+
+        # Additional: Polarity Chart for Comments
+        fig_polarity = px.bar(x=list(categorized_comments.keys()), y=[len(categorized_comments[key]) for key in categorized_comments],
+                              labels={'x': 'Sentiment', 'y': 'Count'},
+                              title="Sentiment Distribution of Comments")
+        fig_polarity.update_layout(height=400, width=800)
+        st.plotly_chart(fig_polarity)
 
         # Additional: Display Filtered Comments
         if filtered_comments:
@@ -2147,4 +2153,3 @@ st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
     "[GitHub](https://github.com/your-github-profile)"
 )
-
