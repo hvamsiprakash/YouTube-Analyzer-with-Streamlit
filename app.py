@@ -425,6 +425,7 @@ def get_video_comments(video_id):
         return []
 
 # Function to generate word cloud from comments
+
 def generate_word_cloud(comments):
     try:
         if not comments:
@@ -438,14 +439,10 @@ def generate_word_cloud(comments):
 
         # Display WordCloud using matplotlib
         st.subheader("Word Cloud")
-        fig, ax = plt.subplots()
-        ax.imshow(wordcloud, interpolation='bilinear')
-        ax.axis('off')
-
-        # Show WordCloud in Streamlit
-        st.pyplot(fig)
+        st.image(wordcloud.to_image(), caption="Generated Word Cloud", use_container_width=True)
     except Exception as e:
         st.error(f"Error generating word cloud: {e}")
+
 
 
 # Function to analyze and categorize comments sentiment
