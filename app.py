@@ -58,11 +58,23 @@ def get_all_video_details(channel_id):
         video_details = []
         for item in response.get("items", []):
             video_id = item["id"]["videoId"]
+            title = item["snippet"]["title"]
             url = f"https://www.youtube.com/watch?v={video_id}"
 
-            video_details.append((url,))
+            # Use a separate request to get video statistics
+            video_info = youtube.videos().list(
+                part="statistics",
+                id=video_id
+            ).execute()
 
-        videos_df = pd.DataFrame(video_details, columns=["URL"])
+            statistics_info = video_info.get("items", [])[0]["statistics"]
+            views = int(statistics_info.get("viewCount", 0))
+            likes = int(statistics_info.get("likeCount", 0))
+            comments = int(statistics_info.get("commentCount", 0))
+
+            video_details.append((title, views, likes, comments, url))
+
+        videos_df = pd.DataFrame(video_details, columns=["Title", "Views", "Likes", "Comments", "URL"])
         return videos_df
     except googleapiclient.errors.HttpError as e:
         return handle_api_error(e, "Error fetching video details")
@@ -190,7 +202,29 @@ if st.sidebar.checkbox("Channel Analytics"):
         st.write(f"**Total Likes:** {total_likes}")
         st.write(f"**Total Comments:** {total_comments}")
 
-        # Display DataFrame of video details with clickable URLs
+        # Advanced Charts for Channel Analytics
+        st.subheader("Advanced Analytics Charts")
+
+        # Time Series Chart for Views
+        fig_views = px.line(videos_df, x="Title", y="Views", title="Time Series Chart for Views")
+        fig_views.update_layout(height=400, width=800)
+        st.plotly_chart(fig_views)
+
+        # Bar Chart for Likes and Comments
+        fig_likes_comments = px.bar(videos_df, x="Title", y=["Likes", "Comments"],
+                                    title="Bar Chart for Likes and Comments", barmode="group")
+        fig_likes_comments.update_layout(height=400, width=800)
+        st.plotly_chart(fig_likes_comments)
+
+        # Additional: Polarity Chart for Comments
+        categorized_comments = analyze_and_categorize_comments(videos_df["Comments"].apply(str))
+        fig_polarity = px.bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
+                              labels={'x': 'Sentiment', 'y': 'Count'},
+                              title="Sentiment Distribution of Comments")
+        fig_polarity.update_layout(height=400, width=800)
+        st.plotly_chart(fig_polarity)
+
+        # Additional: Display DataFrame of video details with clickable URLs
         st.subheader("All Video Details")
         videos_df['URL'] = videos_df['URL'].apply(lambda x: f'<a href="{x}" target="_blank">Link</a>')
         st.write(videos_df, unsafe_allow_html=True)
