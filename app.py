@@ -1534,7 +1534,6 @@ import googleapiclient.discovery
 import pandas as pd
 import plotly.express as px
 from textblob import TextBlob
-from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 
 # Set your YouTube Data API key here
@@ -1674,16 +1673,6 @@ def get_video_comments(video_id):
         st.error(f"Error fetching comments: {e}")
         return []
 
-# Function to generate word cloud from comments
-def generate_word_cloud(comments):
-    try:
-        text = ' '.join(comments)
-        wordcloud = WordCloud(width=800, height=400, random_state=21, max_font_size=110, background_color='white').generate(text)
-        return wordcloud
-    except Exception as e:
-        st.error(f"Error generating word cloud: {e}")
-        return None
-
 # Function to analyze and categorize comments sentiment
 def analyze_and_categorize_comments(comments):
     try:
@@ -1749,7 +1738,7 @@ if st.sidebar.checkbox("Channel Analytics"):
         # Additional: Display DataFrame of video details with clickable URLs
         st.subheader("All Video Details")
         videos_df['URL'] = videos_df['URL'].apply(lambda x: f"<a href='{x}' target='_blank'>{x}</a>")
-        st.write(videos_df[['Title', 'Video ID', 'Views','Channel', 'URL']].to_html(escape=False), unsafe_allow_html=True)
+        st.write(videos_df[['Title', 'Video ID', 'Views', 'Duration', 'Channel', 'URL']].to_html(escape=False), unsafe_allow_html=True)
 
 # Task 2: Video Recommendation based on User's Topic of Interest
 if st.sidebar.checkbox("Video Recommendation"):
@@ -1791,15 +1780,6 @@ if st.sidebar.checkbox("Sentimental Analysis"):
 
         # Display Advanced Visualization Charts for Comments
         st.subheader(f"{selected_sentiment.capitalize()} Comments Analysis")
-
-        # Additional: Word Cloud
-        st.subheader(f"Word Cloud for {selected_sentiment.capitalize()} Comments")
-        wordcloud = generate_word_cloud(filtered_comments)
-        if wordcloud:
-            plt.figure(figsize=(10, 5))
-            plt.imshow(wordcloud, interpolation='bilinear')
-            plt.axis('off')
-            st.pyplot(plt)
 
         # Additional: Sentiment Distribution Chart
         sentiment_df = []
