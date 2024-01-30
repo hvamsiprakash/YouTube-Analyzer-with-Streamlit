@@ -751,6 +751,17 @@ def analyze_and_categorize_comments(comments):
 # Main Streamlit app
 st.title("YouTube Analyzer")
 
+# Description of the YouTube Analyzer app
+st.markdown(
+    """
+    Welcome to YouTube Analyzer – your go-to tool for in-depth analysis of YouTube channels and videos! 
+    Whether you want to explore detailed analytics for a specific channel, discover top-notch video recommendations, 
+    or dive into the sentiment analysis of video comments, this app provides a comprehensive and interactive experience. 
+    Gain insights into channel statistics, explore engaging charts, and uncover the sentiment behind the comments. 
+    Let's unravel the world of YouTube together!
+    """
+)
+
 # Sidebar
 st.sidebar.title("YouTube Analyzer")
 st.sidebar.subheader("Select a Task")
@@ -798,13 +809,13 @@ if st.sidebar.checkbox("Channel Analytics"):
 
         # Additional: Display DataFrame of video details with clickable URLs
         st.subheader("All Video Details")
-        videos_df['URL'] = videos_df['URL'].apply(lambda x: f'<a href="{x}" target="_blank">Link</a>')
+        videos_df['URL'] = videos_df['URL'].apply(lambda x: x)
         st.write(videos_df, unsafe_allow_html=True)
 
 # Task 2: Video Recommendation based on User's Topic of Interest
 if st.sidebar.checkbox("Video Recommendation"):
     st.sidebar.subheader("Video Recommendation")
-    topic_interest = st.sidebar.text_input("Enter Topic of Interest", value="Python Tutorial")
+    topic_interest = st.sidebar.text_input("Enter Topic of Interest", value="")
 
     if st.sidebar.button("Get Video Recommendations"):
         video_recommendations = get_video_recommendations(topic_interest, max_results=5)
@@ -854,3 +865,11 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             # Additional: Display DataFrame of comments
             st.subheader("All Comments")
             st.write(comments_df)
+
+
+# Footer
+st.sidebar.title("Connect with Me")
+st.sidebar.markdown(
+    "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
+    "[GitHub](https://github.com/your-github-profile)"
+)
