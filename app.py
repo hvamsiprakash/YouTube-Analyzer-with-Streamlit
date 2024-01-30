@@ -2120,6 +2120,9 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         else:
             filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity < 0]
 
+        # Analyze and categorize comments sentiment
+        categorized_comments = analyze_and_categorize_comments(filtered_comments)
+
         # Display Advanced Visualization Charts for Comments
         st.subheader(f"{selected_sentiment.capitalize()} Comments Analysis")
 
@@ -2137,6 +2140,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
                 st.write(f"- {comment}")
         else:
             st.warning(f"No {selected_sentiment.lower()} comments found.")
+
 
 # Footer
 st.sidebar.title("Connect with Me")
