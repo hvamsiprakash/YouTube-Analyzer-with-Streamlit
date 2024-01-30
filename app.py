@@ -218,10 +218,18 @@ if st.sidebar.checkbox("Channel Analytics"):
         fig_likes_comments.update_layout(height=400, width=800)
         st.plotly_chart(fig_likes_comments)
 
+        # Additional: Polarity Chart for Comments
+        categorized_comments = analyze_and_categorize_comments(videos_df["Comments"].apply(str))
+        fig_polarity = px.bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
+                              labels={'x': 'Sentiment', 'y': 'Count'},
+                              title="Sentiment Distribution of Comments")
+        fig_polarity.update_layout(height=400, width=800)
+        st.plotly_chart(fig_polarity)
+
         # Additional: Display DataFrame of video details with clickable URLs
         st.subheader("All Video Details")
         videos_df['URL'] = videos_df['URL'].apply(lambda x: f'<a href="{x}" target="_blank">Link</a>')
-        st.dataframe(videos_df.style.format({'URL': '<a href="{}" target="_blank">Link</a>'}, escape=False), unsafe_allow_html=True)
+        st.write(videos_df, unsafe_allow_html=True)
 
 # Task 2: Video Recommendation based on User's Topic of Interest
 if st.sidebar.checkbox("Video Recommendation"):
@@ -245,48 +253,26 @@ if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
     video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
 
-    comment_type = st.sidebar.radio("Select the type of comments you want to see:", ("Positive", "Neutral", "Negative", "All"))
-    
     if st.sidebar.button("Analyze Sentiments and Generate Word Cloud"):
         comments_sentiment = get_video_comments(video_id_sentiment)
-
-        # Filter comments based on user choice
-        if comment_type == "Positive":
-            comments_sentiment = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity > 0]
-        elif comment_type == "Neutral":
-            comments_sentiment = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity == 0]
-        elif comment_type == "Negative":
-            comments_sentiment = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity < 0]
 
         # Generate Word Cloud
         wordcloud = generate_word_cloud(comments_sentiment)
         if wordcloud is not None:
-            st.subheader("Word Cloud for Comments")
-            st.image(wordcloud.to_image(), use_container_width=True)
+            st.subheader("Word Cloud")
+            st.image(wordcloud.to_image(), caption="Generated Word Cloud", use_container_width=True)
 
-        # Sentiment Analysis Visualization
-        st.subheader("Sentiment Analysis Visualization")
+            # Analyze and Categorize Comments
+            categorized_comments = analyze_and_categorize_comments(comments_sentiment)
 
-        # Pie Chart for Sentiment Distribution
-        categorized_comments = analyze_and_categorize_comments(comments_sentiment)
-        fig_pie = px.pie(values=list(categorized_comments.values()), names=list(categorized_comments.keys()),
-                        title="Sentiment Distribution of Comments")
-        st.plotly_chart(fig_pie)
+            # Display Sentimental Analysis Results
+            st.subheader("Sentimental Analysis Results")
+            for sentiment, count in categorized_comments.items():
+                st.write(f"**{sentiment} Sentiments:** {count}")
 
-        # Bar Chart for Polarity Distribution
-        polarity_values = [TextBlob(comment).sentiment.polarity for comment in comments_sentiment]
-        fig_polarity = px.bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
-                              title="Polarity Distribution of Comments", text=polarity_values, textposition="auto")
-        st.plotly_chart(fig_polarity)
-
-
-
-# Display the app
-st.set_page_config(page_title="YouTube Analyzer", page_icon=":movie_camera:", layout="wide")
-st.title("YouTube Analyzer")
-
-
-
-# Run the app
-if __name__ == "__main__":
-    st.run()
+# Footer
+st.sidebar.title("Connect with Me")
+st.sidebar.markdown(
+    "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
+    "[GitHub](https://github.com/your-github-profile)"
+)
