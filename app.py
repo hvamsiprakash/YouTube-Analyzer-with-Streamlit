@@ -1928,13 +1928,13 @@ def get_all_video_details(channel_id):
             channel_name = snippet_info.get("channelTitle", "N/A")
             thumbnail_url = snippet_info.get("thumbnails", {}).get("default", {}).get("url", "N/A")
 
-            video_details.append((title, video_id, likes, views, comments, upload_date, channel_name, url))
+            video_details.append((title, video_id, likes, views, comments,upload_date, channel_name, url))
 
-        videos_df = pd.DataFrame(video_details, columns=["Title", "Video ID", "Likes", "Views", "Comments", "Upload Date", "Channel", "URL"])
+        videos_df = pd.DataFrame(video_details, columns=["Title", "Video ID", "Likes", "Views", "Comments","Upload Date", "Channel", "URL"])
         return videos_df
     except googleapiclient.errors.HttpError as e:
         st.error(f"Error fetching video details: {e}")
-        return pd.DataFrame(columns=["Title", "Video ID", "Likes", "Views", "Comments", "Upload Date", "Channel", "URL"])
+        return pd.DataFrame(columns=["Title", "Video ID", "Likes", "Views", "Comments","Upload Date", "Channel", "URL"])
 
 # Function to get video recommendations based on user's topic
 def get_video_recommendations(topic, max_results=10):
@@ -1965,9 +1965,9 @@ def get_video_recommendations(topic, max_results=10):
             duration = snippet_info.get("duration", "N/A")
             channel_name = snippet_info.get("channelTitle", "N/A")
             thumbnail_url = snippet_info.get("thumbnails", {}).get("default", {}).get("url", "N/A")
-            total_comments = int(statistics_info.get("commentCount", 0))
+            comments = int(statistics_info.get("commentCount", 0))  # Include total comments
 
-            video_details.append((title, video_id, views, duration, channel_name, url, thumbnail_url, total_comments))
+            video_details.append((title, video_id, views, duration, channel_name, url, thumbnail_url, comments))  # Include total comments
 
         return video_details
     except googleapiclient.errors.HttpError as e:
@@ -2048,7 +2048,7 @@ st.sidebar.subheader("Select a Task")
 # Task 1: Channel Analytics
 if st.sidebar.checkbox("Channel Analytics"):
     st.sidebar.subheader("Channel Analytics")
-    channel_id_analytics = st.sidebar.text_input("Enter Channel ID for Analytics", value="YOUR_CHANNEL_ID")
+    channel_id_analytics = st.sidebar.text_input("Enter Channel ID for Analytics", value="")
 
     if st.sidebar.button("Get Channel Analytics"):
         channel_title, description, country, total_videos, total_views, videos_df = get_channel_analytics(channel_id_analytics)
@@ -2066,13 +2066,13 @@ if st.sidebar.checkbox("Channel Analytics"):
 
         # Time Series Chart for Views
         fig_views = px.line(videos_df, x="Title", y="Views", title="Time Series Chart for Views")
-        fig_views.update_layout(height=400, width=800)
+        fig_views.update_layout(height=600, width=1000)  # Increased size for better visibility
         st.plotly_chart(fig_views)
 
         # Bar Chart for Likes and Comments
         fig_likes_comments = px.bar(videos_df, x="Title", y=["Likes", "Comments"],
                                     title="Bar Chart for Likes and Comments", barmode="group")
-        fig_likes_comments.update_layout(height=400, width=800)
+        fig_likes_comments.update_layout(height=600, width=1000)  # Increased size for better visibility
         st.plotly_chart(fig_likes_comments)
 
         # Additional: Display DataFrame of video details with clickable URLs
@@ -2095,8 +2095,8 @@ if st.sidebar.checkbox("Video Recommendation"):
             st.write(f"<img src='{video[6]}' alt='Thumbnail' style='max-height: 150px;'>", unsafe_allow_html=True)
             st.write(f"Video ID: {video[1]}")
             st.write(f"Views: {video[2]}")
-            st.write(f"Total Comments: {video[7]}")
             st.write(f"Channel: {video[4]}")
+            st.write(f"Total Comments: {video[7]}")  # Display total comments
             st.write(f"Watch Video: [Link]({video[5]})")
             st.write("---")
 
@@ -2135,7 +2135,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         fig_polarity = px.bar(x=list(categorized_comments.keys()), y=[len(categorized_comments[key]) for key in categorized_comments],
                               labels={'x': 'Sentiment', 'y': 'Count'},
                               title="Sentiment Distribution of Comments")
-        fig_polarity.update_layout(height=400, width=800)
+        fig_polarity.update_layout(height=600, width=1000)  # Increased size for better visibility
         st.plotly_chart(fig_polarity)
 
         # Additional: Display Filtered Comments
@@ -2152,4 +2152,5 @@ st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
     "[GitHub](https://github.com/your-github-profile)"
 )
+
 
