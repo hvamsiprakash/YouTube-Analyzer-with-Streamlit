@@ -441,18 +441,25 @@ def generate_word_cloud(comments):
         return None
 
 # Function to analyze and categorize comments sentiment
-def analyze_and_categorize_comments(comments, sentiment_choice):
+def analyze_and_categorize_comments(comments, sentiment_choice='all'):
     try:
         categorized_comments = {'Positive': 0, 'Neutral': 0, 'Negative': 0}
 
         for comment in comments:
             analysis = TextBlob(comment)
-            # Classify the polarity of the comment
-            if analysis.sentiment.polarity > 0:
+            # Classify the polarity of the comment based on the user's choice
+            if sentiment_choice == 'all':
+                if analysis.sentiment.polarity > 0:
+                    categorized_comments['Positive'] += 1
+                elif analysis.sentiment.polarity == 0:
+                    categorized_comments['Neutral'] += 1
+                else:
+                    categorized_comments['Negative'] += 1
+            elif sentiment_choice == 'positive' and analysis.sentiment.polarity > 0:
                 categorized_comments['Positive'] += 1
-            elif analysis.sentiment.polarity == 0:
+            elif sentiment_choice == 'neutral' and analysis.sentiment.polarity == 0:
                 categorized_comments['Neutral'] += 1
-            else:
+            elif sentiment_choice == 'negative' and analysis.sentiment.polarity < 0:
                 categorized_comments['Negative'] += 1
 
         return categorized_comments
@@ -500,19 +507,6 @@ if st.sidebar.checkbox("Channel Analytics"):
         fig_likes_comments.update_layout(height=400, width=800)
         st.plotly_chart(fig_likes_comments)
 
-        # Additional: Polarity Chart for Comments
-        categorized_comments = analyze_and_categorize_comments(videos_df["Comments"].apply(str), 'all')
-        fig_polarity = px.bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
-                              labels={'x': 'Sentiment', 'y': 'Count'},
-                              title="Sentiment Distribution of Comments")
-        fig_polarity.update_layout(height=400, width=800)
-        st.plotly_chart(fig_polarity)
-
-        # Additional: Display DataFrame of video details with clickable URLs
-        st.subheader("All Video Details")
-        videos_df['URL'] = videos_df['URL'].apply(lambda x: f'<a href="{x}" target="_blank">Link</a>')
-        st.write(videos_df, unsafe_allow_html=True)
-
 # Task 2: Video Recommendation based on User's Topic of Interest
 if st.sidebar.checkbox("Video Recommendation"):
     st.sidebar.subheader("Video Recommendation")
@@ -549,19 +543,31 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         elif sentiment_choice == 'negative':
             comments_sentiment = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity < 0]
 
+        # Analyze and Categorize Comments
+        categorized_comments = analyze_and_categorize_comments(comments_sentiment, sentiment_choice)
+
+        # Display Sentimental Analysis Results
+        st.subheader("Sentimental Analysis Results")
+        for sentiment, count in categorized_comments.items():
+            st.write(f"**{sentiment} Sentiments:** {count}")
+
+        # Additional: Polarity Chart for Comments
+        fig_polarity = px.bar(x=list(categorized_comments.keys()), y=list(categorized_comments.values()),
+                              labels={'x': 'Sentiment', 'y': 'Count'},
+                              title="Sentiment Distribution of Comments")
+        fig_polarity.update_layout(height=400, width=800)
+        st.plotly_chart(fig_polarity)
+
+        # Additional: Display DataFrame of video details with clickable URLs
+        st.subheader("All Video Details")
+        videos_df['URL'] = videos_df['URL'].apply(lambda x: f'<a href="{x}" target="_blank">Link</a>')
+        st.write(videos_df, unsafe_allow_html=True)
+
         # Generate Word Cloud
         wordcloud = generate_word_cloud(comments_sentiment)
         if wordcloud is not None:
             st.subheader("Word Cloud")
             st.image(wordcloud.to_image(), caption="Generated Word Cloud", use_container_width=True)
-
-            # Analyze and Categorize Comments
-            categorized_comments = analyze_and_categorize_comments(comments_sentiment, sentiment_choice)
-
-            # Display Sentimental Analysis Results
-            st.subheader("Sentimental Analysis Results")
-            for sentiment, count in categorized_comments.items():
-                st.write(f"**{sentiment} Sentiments:** {count}")
 
 # Footer
 st.sidebar.title("Connect with Me")
@@ -569,5 +575,3 @@ st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
     "[GitHub](https://github.com/your-github-profile)"
 )
-
-
