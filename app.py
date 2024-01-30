@@ -1208,7 +1208,7 @@ import plotly.express as px
 from textblob import TextBlob
 
 # Set your YouTube Data API key here
-YOUTUBE_API_KEY = "AIzaSyC1vKniA_REYpyqKYYnpssBffmvbuPT8Ks"
+YOUTUBE_API_KEY = "AIzaSyDGIngwgg2bh5NFaoD53ccwtVY_ObXcaIQ"
 
 # Initialize the YouTube Data API client
 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
