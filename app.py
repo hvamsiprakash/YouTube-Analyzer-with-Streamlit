@@ -583,6 +583,4 @@ st.sidebar.markdown(
     "[GitHub](https://github.com/your-github-profile)"
 )
 
-    "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
-    "[GitHub](https://github.com/your-github-profile)"
-)
+ 
