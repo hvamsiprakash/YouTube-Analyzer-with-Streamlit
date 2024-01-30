@@ -302,14 +302,12 @@ def get_channel_analytics(channel_id):
             id=channel_id
         ).execute()
 
-        items = response.get("items", [])
-
-        if not items:
-            st.error(f"No channel found with ID: {channel_id}")
+        if "items" not in response or not response["items"]:
+            st.error("No channel found with the provided ID.")
             return None, None, None, None, None, None, None, None, None
 
-        channel_info = items[0].get("snippet", {})
-        statistics_info = items[0].get("statistics", {})
+        channel_info = response["items"][0]["snippet"]
+        statistics_info = response["items"][0]["statistics"]
 
         channel_title = channel_info.get("title", "N/A")
         description = channel_info.get("description", "N/A")
