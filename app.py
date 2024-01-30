@@ -1857,17 +1857,6 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
 # Importing necessary libraries and modules
 import streamlit as st
 import googleapiclient.discovery
@@ -1976,8 +1965,9 @@ def get_video_recommendations(topic, max_results=10):
             duration = snippet_info.get("duration", "N/A")
             channel_name = snippet_info.get("channelTitle", "N/A")
             thumbnail_url = snippet_info.get("thumbnails", {}).get("default", {}).get("url", "N/A")
+            total_comments = int(statistics_info.get("commentCount", 0))
 
-            video_details.append((title, video_id, views, duration, channel_name, url, thumbnail_url))
+            video_details.append((title, video_id, views, duration, channel_name, url, thumbnail_url, total_comments))
 
         return video_details
     except googleapiclient.errors.HttpError as e:
@@ -2025,16 +2015,12 @@ def analyze_and_categorize_comments(comments):
         for comment in comments:
             analysis = TextBlob(comment)
             # Classify the polarity of the comment
-            polarity = analysis.sentiment.polarity
-            subjectivity = analysis.sentiment.subjectivity
-
-            # Categorize the comment based on polarity
-            if polarity > 0:
-                categorized_comments['Positive'].append((comment, polarity, subjectivity))
-            elif polarity == 0:
-                categorized_comments['Neutral'].append((comment, polarity, subjectivity))
+            if analysis.sentiment.polarity > 0:
+                categorized_comments['Positive'].append((comment, analysis.sentiment.polarity, analysis.sentiment.subjectivity))
+            elif analysis.sentiment.polarity == 0:
+                categorized_comments['Neutral'].append((comment, analysis.sentiment.polarity, analysis.sentiment.subjectivity))
             else:
-                categorized_comments['Negative'].append((comment, polarity, subjectivity))
+                categorized_comments['Negative'].append((comment, analysis.sentiment.polarity, analysis.sentiment.subjectivity))
 
         return categorized_comments
     except Exception as e:
@@ -2092,7 +2078,7 @@ if st.sidebar.checkbox("Channel Analytics"):
         # Additional: Display DataFrame of video details with clickable URLs
         st.subheader("All Video Details")
         videos_df['URL'] = videos_df['URL'].apply(lambda x: f"<a href='{x}' target='_blank'>{x}</a>")
-        st.write(videos_df[['Title', 'Video ID', 'Likes', 'Views', 'Comments', 'Upload Date', 'Channel', 'URL']].to_html(escape=False), unsafe_allow_html=True)
+        st.write(videos_df[['Title', 'Video ID', 'Likes', 'Views', 'Comments','Upload Date', 'Channel', 'URL']].to_html(escape=False), unsafe_allow_html=True)
 
 # Task 2: Video Recommendation based on User's Topic of Interest
 if st.sidebar.checkbox("Video Recommendation"):
@@ -2109,6 +2095,7 @@ if st.sidebar.checkbox("Video Recommendation"):
             st.write(f"<img src='{video[6]}' alt='Thumbnail' style='max-height: 150px;'>", unsafe_allow_html=True)
             st.write(f"Video ID: {video[1]}")
             st.write(f"Views: {video[2]}")
+            st.write(f"Total Comments: {video[7]}")
             st.write(f"Channel: {video[4]}")
             st.write(f"Watch Video: [Link]({video[5]})")
             st.write("---")
@@ -2139,7 +2126,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         categorized_comments = analyze_and_categorize_comments(filtered_comments)
         sentiment_df = []
         for sentiment, sentiment_comments in categorized_comments[selected_sentiment.capitalize()]:
-            sentiment_df.extend([(sentiment, sentiment_comments[0], sentiment_comments[1])])
+            sentiment_df.extend([(sentiment, sentiment_comments[1], sentiment_comments[2])])
 
         sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title='Sentiment Analysis')
         st.plotly_chart(sentiment_chart)
@@ -2165,3 +2152,4 @@ st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
     "[GitHub](https://github.com/your-github-profile)"
 )
+
