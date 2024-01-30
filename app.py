@@ -468,7 +468,7 @@ st.sidebar.subheader("Select a Task")
 # Task 1: Channel Analytics
 if st.sidebar.checkbox("Channel Analytics"):
     st.sidebar.subheader("Channel Analytics")
-    channel_id_analytics = st.sidebar.text_input("Enter Channel ID for Analytics", value="YOUR_CHANNEL_ID")
+    channel_id_analytics = st.sidebar.text_input("Enter Channel ID", value="YOUR_CHANNEL_ID")
 
     if st.sidebar.button("Get Channel Analytics"):
         channel_title, description, published_at, country, total_videos, total_views, total_likes, total_comments, videos_df = get_channel_analytics(channel_id_analytics)
@@ -525,7 +525,7 @@ if st.sidebar.checkbox("Video Recommendation"):
             st.write(f"**Title:** {video[0]}")
             st.write(f"**Views:** {video[1]}, **Likes:** {video[2]}, **URL:** {video[3]}")
             thumbnail_url = f"https://img.youtube.com/vi/{video[3].split('=')[1]}/default.jpg"
-            st.image(thumbnail_url, caption=f"Video URL: {video[3]}", use_container_width=True)
+            st.image(thumbnail_url, caption=f"Video URL: {video[3]}")
             st.write("---")
 
 # Task 3: Sentimental Analysis of Comments with Visualization and Word Cloud
@@ -559,7 +559,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         wordcloud = generate_word_cloud(filtered_comments)
         if wordcloud is not None:
             st.subheader("Word Cloud")
-            st.image(wordcloud.to_image(), caption="Generated Word Cloud", use_container_width=True)
+            st.image(wordcloud.to_image(), caption="Generated Word Cloud")
 
 
 # Footer
