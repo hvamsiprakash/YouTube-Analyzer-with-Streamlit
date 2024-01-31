@@ -1027,7 +1027,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
 
         # Additional code for displaying comments
         st.subheader(f"{selected_sentiment} Comments:")
-        for idx, comment_info in enumerate(filtered_comments[:5]):
+        for idx, comment_info in enumerate(filtered_comments[:20]):
             comment_text, polarity, subjectivity = comment_info
             st.write(f"{idx + 1}. {comment_text} (Polarity: {polarity}, Subjectivity: {subjectivity})")
 
