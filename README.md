@@ -1,6 +1,6 @@
 # YouTube Analyzer: Unleash the Power of YouTube Insights! 🚀
 
-Streamlit:
+Streamlit: https://youtube-analyzer-with-app-cpnmdvm6ky5mmaxaz98c9t.streamlit.app/
 
 Dive into the vibrant world of YouTube with the YouTube Analyzer, your go-to tool for comprehensive channel analytics, video recommendations, and sentiment analysis of comments. 📈🎥👥
 
