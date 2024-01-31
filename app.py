@@ -1034,24 +1034,3 @@ st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/hvamsi/) | "
     "[GitHub](https://github.com/hvamsiprakash)"
 )
-
-
-
-        # Display sentiment analysis results for the selected sentiment type
-        st.subheader(f"Selected Sentiment Type: {selected_sentiment}")
-        st.write(f"Total {selected_sentiment} Comments: {len(filtered_comments)}")
-
-        # Additional code for displaying comments
-        st.subheader(f"{selected_sentiment} Comments:")
-        for idx, comment_info in enumerate(filtered_comments[:5]):
-            comment_text, polarity, subjectivity = comment_info
-            st.write(f"{idx + 1}. {comment_text} (Polarity: {polarity}, Subjectivity: {subjectivity})")
-
-# Footer
-st.sidebar.title("Connect with Me")
-st.sidebar.markdown(
-    "[LinkedIn](https://www.linkedin.com/in/hvamsi/) | "
-    "[GitHub](https://github.com/hvamsiprakash)"
-)
-
-
