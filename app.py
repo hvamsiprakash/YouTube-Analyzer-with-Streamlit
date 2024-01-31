@@ -958,8 +958,6 @@ if st.sidebar.checkbox("Video Recommendation"):
             st.write(f"Watch Video: [Link]({video[4]})")
             st.write("---")
 
-# ... (Previous code remains unchanged)
-
 # Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
@@ -1004,13 +1002,40 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         st.plotly_chart(fig_sentiment_bar_chart, use_container_width=True)
 
         # Visualization Chart 2: Scatter Plot for Relationship between Polarity and Subjectivity for All Comments
-        fig_scatter_plot_all = px.scatter(x=[comment_info[1] for comment_info in categorized_comments_all[selected_sentiment]],
-                                          y=[comment_info[2] for comment_info in categorized_comments_all[selected_sentiment]],
-                                          color=selected_sentiment,
+        all_comments_polarity = []
+        all_comments_subjectivity = []
+
+        for sentiment_type in categorized_comments_all.values():
+            for comment_info in sentiment_type:
+                all_comments_polarity.append(comment_info[1])
+                all_comments_subjectivity.append(comment_info[2])
+
+        fig_scatter_plot_all = px.scatter(x=all_comments_polarity,
+                                          y=all_comments_subjectivity,
+                                          color=[selected_sentiment] * len(all_comments_polarity),
                                           labels={"x": "Polarity", "y": "Subjectivity"},
-                                          title=f"Relationship between Polarity and Subjectivity for All {selected_sentiment} Comments",
+                                          title=f"Relationship between Polarity and Subjectivity for All Comments",
                                           height=400)
         st.plotly_chart(fig_scatter_plot_all, use_container_width=True)
+
+        # Display sentiment analysis results for the selected sentiment type
+        st.subheader(f"Selected Sentiment Type: {selected_sentiment}")
+        st.write(f"Total {selected_sentiment} Comments: {len(filtered_comments)}")
+
+        # Additional code for displaying comments
+        st.subheader(f"{selected_sentiment} Comments:")
+        for idx, comment_info in enumerate(filtered_comments[:5]):
+            comment_text, polarity, subjectivity = comment_info
+            st.write(f"{idx + 1}. {comment_text} (Polarity: {polarity}, Subjectivity: {subjectivity})")
+
+# Footer
+st.sidebar.title("Connect with Me")
+st.sidebar.markdown(
+    "[LinkedIn](https://www.linkedin.com/in/hvamsi/) | "
+    "[GitHub](https://github.com/hvamsiprakash)"
+)
+
+
 
         # Display sentiment analysis results for the selected sentiment type
         st.subheader(f"Selected Sentiment Type: {selected_sentiment}")
