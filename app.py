@@ -577,7 +577,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
     video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
 
     # Allow the user to choose the type of comments
-    selected_sentiment = st.sidebar.selectbox("Select Comment Type", ["Positive", "Neutral", "Negative"])
+    selected_sentiment = st.sidebar.radio("Select Comment Type", ["Positive", "Neutral", "Negative"])
 
     if st.sidebar.button("Analyze Sentiments"):
         comments_sentiment = get_video_comments(video_id_sentiment)
@@ -610,6 +610,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             for comment in sentiment_comments:
                 st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
                 st.write(f"  {comment[0]}")
+
 
 # Footer
 st.sidebar.title("Connect with Me")
