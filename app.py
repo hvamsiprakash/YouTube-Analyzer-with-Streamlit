@@ -571,6 +571,8 @@ if st.sidebar.checkbox("Video Recommendation"):
             st.write(f"Watch Video: [Link]({video[4]})")
             st.write("---")
 
+# ... (Previous code remains unchanged)
+
 # Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
@@ -597,9 +599,27 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         if selected_sentiment == "Positive":
             filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity > 0]
         elif selected_sentiment == "Neutral":
-            filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment
+            filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity == 0]
+        else:
+            filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity < 0]
 
-     
+        # Analyze and categorize comments sentiment
+        categorized_comments_sentiment = analyze_and_categorize_comments(filtered_comments)
+
+        # Display sentiment distribution chart
+        sentiment_df = []
+        for sentiment, sentiment_comments in categorized_comments_sentiment.items():
+            sentiment_df.extend([(sentiment, comment[1], comment[2]) for comment in sentiment_comments])
+
+        sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title='Sentiment Analysis')
+        st.plotly_chart(sentiment_chart)
+
+        # Display categorized comments
+        for sentiment, sentiment_comments in categorized_comments_sentiment.items():
+            st.subheader(sentiment)
+            for comment in sentiment_comments:
+                st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
+                st.write(f"  {comment[0]}")
 
 # Footer
 st.sidebar.title("Connect with Me")
