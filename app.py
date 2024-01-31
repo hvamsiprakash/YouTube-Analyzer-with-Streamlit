@@ -571,57 +571,6 @@ if st.sidebar.checkbox("Video Recommendation"):
             st.write(f"Watch Video: [Link]({video[4]})")
             st.write("---")
 
-    if st.sidebar.button("Analyze Sentiments"):
-        comments_sentiment = get_video_comments(video_id_sentiment)
-
-        # Filter comments based on the selected sentiment
-        if selected_sentiment == "Positive":
-            filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity > 0]
-            sentiment_title = "Positive Comments"
-        elif selected_sentiment == "Neutral":
-            filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity == 0]
-            sentiment_title = "Neutral Comments"
-        else:
-            filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity < 0]
-            sentiment_title = "Negative Comments"
-
-        # Analyze and categorize comments sentiment
-        categorized_comments_sentiment = analyze_and_categorize_comments(filtered_comments)
-
-        # Display sentiment distribution chart
-        sentiment_df = []
-        for sentiment, sentiment_comments in categorized_comments_sentiment.items():
-            sentiment_df.extend([(sentiment, comment[1], comment[2]) for comment in sentiment_comments])
-
-        sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title=f'Sentiment Analysis - {sentiment_title}')
-        st.plotly_chart(sentiment_chart)
-
-        # Display categorized comments
-        st.subheader(sentiment_title)
-        for comment in categorized_comments_sentiment[selected_sentiment]:
-            st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
-            st.write(f"  {comment[0]}")
-
-# Task 2: Video Recommendation based on User's Topic of Interest
-if st.sidebar.checkbox("Video Recommendation"):
-    st.sidebar.subheader("Video Recommendation")
-    topic_interest = st.sidebar.text_input("Enter Topic of Interest", value="")
-
-    if st.sidebar.button("Get Video Recommendations"):
-        video_recommendations = get_video_recommendations(topic_interest, max_results=10)
-
-        # Display Video Recommendations
-        st.subheader("Video Recommendations")
-        for video in video_recommendations:
-            st.write(f"**{video[0]}**")
-            st.write(f"<img src='{video[6]}' alt='Thumbnail' style='max-height: 150px;'>", unsafe_allow_html=True)
-            st.write(f"Video ID: {video[1]}")
-            st.write(f"Views: {video[2]}")
-            st.write(f"Channel: {video[4]}")
-            st.write(f"Total Comments: {video[7]}")  # Display total comments
-            st.write(f"Watch Video: [Link]({video[5]})")
-            st.write("---")
-
 # Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
@@ -658,14 +607,3 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             for comment in sentiment_comments:
                 st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
                 st.write(f"  {comment[0]}")
-
-
-
-# Footer
-st.sidebar.title("Connect with Me")
-st.sidebar.markdown(
-    "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
-    "[GitHub](https://github.com/your-github-profile)"
-)
-
-
