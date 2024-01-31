@@ -373,7 +373,6 @@ def get_all_video_details(channel_id):
             views = int(statistics_info.get("viewCount", 0))
             likes = int(statistics_info.get("likeCount", 0))
             comments = int(statistics_info.get("commentCount", 0))
-            duration = snippet_info.get("duration", "N/A")
             upload_date = snippet_info.get("publishedAt", "N/A")
             channel_name = snippet_info.get("channelTitle", "N/A")
             thumbnail_url = snippet_info.get("thumbnails", {}).get("default", {}).get("url", "N/A")
@@ -412,12 +411,11 @@ def get_video_recommendations(topic, max_results=10):
             statistics_info = video_info.get("items", [])[0]["statistics"]
             snippet_info = video_info.get("items", [])[0]["snippet"]
             views = int(statistics_info.get("viewCount", 0))
-            duration = snippet_info.get("duration", "N/A")
             channel_name = snippet_info.get("channelTitle", "N/A")
             thumbnail_url = snippet_info.get("thumbnails", {}).get("default", {}).get("url", "N/A")
             comments = int(statistics_info.get("commentCount", 0))  # Include total comments
 
-            video_details.append((title, video_id, views, duration, channel_name, url, thumbnail_url, comments))  # Include total comments
+            video_details.append((title, video_id, views, channel_name, url, thumbnail_url, comments))  # Include total comments
 
         return video_details
     except googleapiclient.errors.HttpError as e:
@@ -532,19 +530,19 @@ if st.sidebar.checkbox("Channel Analytics"):
         st.subheader("Analytics Charts")
 
         # Time Series Chart for Views
-        fig_views = px.line(videos_df, x="Upload Date", y="Views", title="Views Over Time for Each Video", hover_data=["Title", "Duration", "Likes", "Comments"])
+        fig_views = px.line(videos_df, x="Title", y="Views", title="Views Over Time for Each Video", hover_data=["Title", "Likes", "Comments"])
         fig_views.update_layout(height=600, width=1000, hovermode="x unified")  # Increased size for better visibility
         st.plotly_chart(fig_views, use_container_width=True)
 
         # Bar Chart for Likes and Comments
-        fig_likes_comments = px.bar(videos_df, x="Upload Date", y=["Likes", "Comments"],
-                                    title="Likes and Comments Comparison for Each Video", barmode="group", hover_data=["Title", "Duration", "Views"])
+        fig_likes_comments = px.bar(videos_df, x="Title", y=["Likes", "Comments"],
+                                    title="Likes and Comments Comparison for Each Video", barmode="group", hover_data=["Title", "Views"])
         fig_likes_comments.update_layout(height=600, width=1000, hovermode="x unified")  # Increased size for better visibility
         st.plotly_chart(fig_likes_comments, use_container_width=True)
 
         # New Chart: Scatter Plot for Likes vs Views
         fig_likes_views = px.scatter(videos_df, x="Likes", y="Views", color="Channel",
-                                     title="Scatter Plot for Likes vs Views Across Videos", hover_data=["Title", "Duration"])
+                                     title="Scatter Plot for Likes vs Views Across Videos", hover_data=["Title"])
         fig_likes_views.update_layout(height=600, width=1000, hovermode="closest")  # Increased size for better visibility
         st.plotly_chart(fig_likes_views, use_container_width=True)
 
@@ -565,14 +563,13 @@ if st.sidebar.checkbox("Video Recommendation"):
         st.subheader("Video Recommendations")
         for video in video_recommendations:
             st.write(f"**{video[0]}**")
-            st.write(f"<img src='{video[6]}' alt='Thumbnail' style='max-height: 150px;'>", unsafe_allow_html=True)
+            st.write(f"<img src='{video[5]}' alt='Thumbnail' style='max-height: 150px;'>", unsafe_allow_html=True)
             st.write(f"Video ID: {video[1]}")
             st.write(f"Views: {video[2]}")
-            st.write(f"Channel: {video[4]}")
-            st.write(f"Total Comments: {video[7]}")  # Display total comments
-            st.write(f"Watch Video: [Link]({video[5]})")
+            st.write(f"Channel: {video[3]}")
+            st.write(f"Total Comments: {video[6]}")  # Display total comments
+            st.write(f"Watch Video: [Link]({video[4]})")
             st.write("---")
-
 
 # Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
@@ -610,10 +607,3 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             for comment in sentiment_comments:
                 st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
                 st.write(f"  {comment[0]}")
-
-# Footer
-st.sidebar.title("Connect with Me")
-st.sidebar.markdown(
-    "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
-    "[GitHub](https://github.com/your-github-profile)"
-)
