@@ -661,8 +661,6 @@ if st.sidebar.checkbox("Sentimental Analysis"):
 
 
 
-
-
 # Footer
 st.sidebar.title("Connect with Me")
 st.sidebar.markdown(
