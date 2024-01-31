@@ -601,7 +601,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         elif selected_sentiment == "Neutral":
             filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment
 
-# Footer
+   # Footer
 st.sidebar.title("Connect with Me")
 st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
