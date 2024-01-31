@@ -597,8 +597,6 @@ if st.sidebar.checkbox("Video Recommendation"):
             st.write(f"Watch Video: [Link]({video[4]})")
             st.write("---")
 
-# ... (Previous code remains unchanged)
-
 # Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
@@ -616,7 +614,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
     st.subheader(f"Sentimental Analysis for Video: {video_title}")
 
     # Allow the user to choose the type of comments
-    selected_sentiment = st.sidebar.selectbox("Select Comment Type", ["All Comments", "Positive", "Neutral", "Negative"])
+    selected_sentiment = st.sidebar.selectbox("Select Comment Type", ["Positive", "Neutral", "Negative"])
 
     if st.sidebar.button("Analyze Sentiments"):
         comments_sentiment = get_video_comments(video_id_sentiment)
@@ -624,43 +622,40 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         # Analyze and categorize comments sentiment for all comments
         categorized_comments_all = analyze_and_categorize_comments(comments_sentiment)
 
+        # Filter comments based on the selected sentiment
+        filtered_comments = categorized_comments_all.get(selected_sentiment, [])
+
         # Display video title and visualization charts
         st.subheader("Video Information")
         st.write(f"**Video Title:** {video_title}")
 
-        if selected_sentiment == "All Comments":
-            # Visualization Chart: Scatter Plot for Relationship between Polarity and Subjectivity for All Comments
-            fig_scatter_plot_all = px.scatter(x=[comment_info[1] for comment_info in categorized_comments_all['Positive'] +
-                                                  categorized_comments_all['Neutral'] +
-                                                  categorized_comments_all['Negative']],
-                                              y=[comment_info[2] for comment_info in categorized_comments_all['Positive'] +
-                                                  categorized_comments_all['Neutral'] +
-                                                  categorized_comments_all['Negative']],
-                                              color=['Positive']*len(categorized_comments_all['Positive']) +
-                                                    ['Neutral']*len(categorized_comments_all['Neutral']) +
-                                                    ['Negative']*len(categorized_comments_all['Negative']),
-                                              labels={"x": "Polarity", "y": "Subjectivity"},
-                                              title="Relationship between Polarity and Subjectivity for All Comments",
-                                              height=400)
-            st.plotly_chart(fig_scatter_plot_all, use_container_width=True)
+        # Visualization Chart 1: Bar Chart for Sentiment Distribution with Differentiated Colors
+        colors = {'Positive': 'green', 'Neutral': 'gray', 'Negative': 'red'}
+        fig_sentiment_bar_chart = px.bar(x=["Sentiment Types"],
+                                         y=[len(filtered_comments)],
+                                         color=[selected_sentiment],
+                                         color_discrete_map=colors,
+                                         labels={"x": "Sentiment Type", "y": "Number of Comments"},
+                                         title=f"Sentiment Distribution for {selected_sentiment} Comments",
+                                         height=400)
+        st.plotly_chart(fig_sentiment_bar_chart, use_container_width=True)
 
-        else:
-            # Visualization Chart: Scatter Plot for Relationship between Polarity and Subjectivity
-            fig_scatter_plot_selected = px.scatter(x=[comment_info[1] for comment_info in categorized_comments_all[selected_sentiment]],
-                                                   y=[comment_info[2] for comment_info in categorized_comments_all[selected_sentiment]],
-                                                   color=[selected_sentiment]*len(categorized_comments_all[selected_sentiment]),
-                                                   labels={"x": "Polarity", "y": "Subjectivity"},
-                                                   title=f"Relationship between Polarity and Subjectivity for {selected_sentiment} Comments",
-                                                   height=400)
-            st.plotly_chart(fig_scatter_plot_selected, use_container_width=True)
+        # Visualization Chart 2: Scatter Plot for Relationship between Polarity and Subjectivity for All Comments
+        fig_scatter_plot_all = px.scatter(x=[comment_info[1] for comment_info in categorized_comments_all[selected_sentiment]],
+                                          y=[comment_info[2] for comment_info in categorized_comments_all[selected_sentiment]],
+                                          color=selected_sentiment,
+                                          labels={"x": "Polarity", "y": "Subjectivity"},
+                                          title=f"Relationship between Polarity and Subjectivity for All {selected_sentiment} Comments",
+                                          height=400)
+        st.plotly_chart(fig_scatter_plot_all, use_container_width=True)
 
-        # Display sentiment analysis results
+        # Display sentiment analysis results for the selected sentiment type
         st.subheader(f"Selected Sentiment Type: {selected_sentiment}")
-        st.write(f"Total {selected_sentiment} Comments: {len(categorized_comments_all[selected_sentiment])}")
+        st.write(f"Total {selected_sentiment} Comments: {len(filtered_comments)}")
 
         # Additional code for displaying comments
         st.subheader(f"{selected_sentiment} Comments:")
-        for idx, comment_info in enumerate(categorized_comments_all[selected_sentiment][:5]):
+        for idx, comment_info in enumerate(filtered_comments[:5]):
             comment_text, polarity, subjectivity = comment_info
             st.write(f"{idx + 1}. {comment_text} (Polarity: {polarity}, Subjectivity: {subjectivity})")
 
