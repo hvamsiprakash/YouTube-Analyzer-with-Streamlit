@@ -555,46 +555,51 @@ if st.sidebar.checkbox("Channel Analytics"):
         st.write(f"**Total Videos:** {total_videos}")
         st.write(f"**Total Views:** {total_views}")
 
-        # Advanced Charts for Channel Analytics
-        st.subheader("Advanced Analytics Charts")
 
-        # Time Series Chart for Views
-        fig_views = px.line(videos_df, x="Upload Date", y="Views", title="Time Series Chart for Views")
-        fig_views.update_layout(height=600, width=1000, title_x=0.5)  # Centered title for better visibility
-        # Customize hover data for the Time Series Chart
-        fig_views.update_traces(hovertemplate="<br>".join([
-            "Date: %{x}",
-            "Views: %{y}"
-        ]))
-        st.plotly_chart(fig_views)
 
-        # Bar Chart for Likes and Comments
-        fig_likes_comments = px.bar(videos_df, x="Upload Date", y=["Likes", "Comments"],
-                                    title="Bar Chart for Likes and Comments Over Time", barmode="group")
-        fig_likes_comments.update_layout(height=600, width=1000, title_x=0.5)  # Centered title for better visibility
-        # Customize hover data for the Bar Chart
-        fig_likes_comments.update_traces(hovertemplate="<br>".join([
-            "Date: %{x}",
-            "Likes: %{y[0]}",
-            "Comments: %{y[1]}"
-        ]))
-        st.plotly_chart(fig_likes_comments)
+# Advanced Charts for Channel Analytics
+st.subheader("Analytics Charts")
 
-        # Scatter Plot for Duration vs Views
-        fig_duration_views = px.scatter(videos_df, x="Duration", y="Views", title="Scatter Plot for Duration vs Views")
-        fig_duration_views.update_layout(height=600, width=1000, title_x=0.5)  # Centered title for better visibility
-        # Customize hover data for the Scatter Plot
-        fig_duration_views.update_traces(hovertemplate="<br>".join([
-            "Title: %{text}",
-            "Duration: %{x}",
-            "Views: %{y}"
-        ]))
-        st.plotly_chart(fig_duration_views)
+# Time Series Chart for Views
+fig_views = px.line(videos_df, x="Upload Date", y="Views", title="Time Series Chart for Views")
+fig_views.update_layout(height=600, width=1000, title_x=0.5)  # Centered title for better visibility
+# Customize hover data for the Time Series Chart
+fig_views.update_traces(hovertemplate="<br>".join([
+    "Date: %{x}",
+    "Views: %{y}"
+]))
+st.plotly_chart(fig_views)
 
-        # Additional: Display DataFrame of video details with clickable URLs
-        st.subheader("All Video Details")
-        videos_df['URL'] = videos_df['URL'].apply(lambda x: f"<a href='{x}' target='_blank'>{x}</a>")
-        st.write(videos_df[['Title', 'Video ID', 'Likes', 'Views', 'Comments', 'Upload Date', 'Channel', 'URL']].to_html(escape=False), unsafe_allow_html=True)
+# Bar Chart for Likes and Comments
+fig_likes_comments = px.bar(videos_df, x="Upload Date", y=["Likes", "Comments"],
+                            title="Bar Chart for Likes and Comments Over Time", barmode="group")
+fig_likes_comments.update_layout(height=600, width=1000, title_x=0.5)  # Centered title for better visibility
+# Customize hover data for the Bar Chart
+fig_likes_comments.update_traces(hovertemplate="<br>".join([
+    "Date: %{x}",
+    "Likes: %{y[0]}",
+    "Comments: %{y[1]}"
+]))
+st.plotly_chart(fig_likes_comments)
+
+# Scatter Plot for Duration vs Views
+videos_df['Duration'] = videos_df['Duration'].str.extract('(\d+)').astype(float)  # Extract numeric values from 'Duration'
+fig_duration_views = px.scatter(videos_df, x="Duration", y="Views", title="Scatter Plot for Duration vs Views")
+fig_duration_views.update_layout(height=600, width=1000, title_x=0.5)  # Centered title for better visibility
+# Customize hover data for the Scatter Plot
+fig_duration_views.update_traces(hovertemplate="<br>".join([
+    "Title: %{text}",
+    "Duration: %{x}",
+    "Views: %{y}"
+]))
+st.plotly_chart(fig_duration_views)
+
+# Additional: Display DataFrame of video details with clickable URLs
+st.subheader("All Video Details")
+videos_df['URL'] = videos_df['URL'].apply(lambda x: f"<a href='{x}' target='_blank'>{x}</a>")
+st.write(videos_df[['Title', 'Video ID', 'Likes', 'Views', 'Comments', 'Upload Date', 'Channel', 'URL']].to_html(escape=False), unsafe_allow_html=True)
+
+
 
 # Task 2: Video Recommendation based on User's Topic of Interest
 if st.sidebar.checkbox("Video Recommendation"):
