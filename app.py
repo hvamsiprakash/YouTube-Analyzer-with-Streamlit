@@ -610,10 +610,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
     # Allow the user to choose the type of comments
     selected_sentiment = st.sidebar.selectbox("Select Comment Type", ["Positive", "Neutral", "Negative"])
 
-    # Unique identifier for the button
-    analyze_button_key = f"analyze_button_{selected_sentiment}"
-
-    if st.sidebar.button("Analyze Sentiments", key=analyze_button_key):
+    if st.sidebar.button("Analyze Sentiments"):
         comments_sentiment = get_video_comments(video_id_sentiment)
 
         # Filter comments based on the selected sentiment
@@ -632,15 +629,14 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         for sentiment, sentiment_comments in categorized_comments_sentiment.items():
             sentiment_df.extend([(sentiment, comment[1], comment[2]) for comment in sentiment_comments])
 
-        sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title=f'Sentiment Analysis - {selected_sentiment}')
+        sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title='Sentiment Analysis')
         st.plotly_chart(sentiment_chart)
 
-        # Display categorized comments for the chosen sentiment
+        # Display categorized comments for the chosen sentiment category
         st.subheader(f"{selected_sentiment} Comments")
         for comment in categorized_comments_sentiment[selected_sentiment]:
             st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
             st.write(f"  {comment[0]}")
-
 
 
 
