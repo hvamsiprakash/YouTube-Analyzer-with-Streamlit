@@ -619,7 +619,7 @@ if st.sidebar.checkbox("Video Recommendation"):
 # Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
-    video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
+    video_id_sentiment = st.sidebar.text_input("Enter Video ID", value=" ")
 
     # Allow the user to choose the type of comments
     selected_sentiment = st.sidebar.selectbox("Select Comment Type", ["Positive", "Neutral", "Negative"])
