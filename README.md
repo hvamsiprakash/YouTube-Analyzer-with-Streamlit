@@ -32,13 +32,3 @@ Unlock the full potential of YouTube Analyzer by using valid YouTube IDs for cha
 
 The YouTube Data API key used in this app is for demonstration purposes only. Replace it with your own API key to ensure uninterrupted access to YouTube data. Follow the instructions in the app's documentation to obtain and set up your API key.
 
-## How to Use 🛠️
-
-1. Clone this repository: `git clone https://github.com/your-username/your-repo.git`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Run the app: `streamlit run app.py`
-
-## Example Usage
-
-```bash
-streamlit run app.py
