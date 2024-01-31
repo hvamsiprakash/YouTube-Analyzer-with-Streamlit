@@ -992,12 +992,15 @@ if st.sidebar.checkbox("Sentimental Analysis"):
 
         # Visualization Chart 1: Bar Chart for Sentiment Distribution with Differentiated Colors
         colors = {'Positive': 'green', 'Neutral': 'gray', 'Negative': 'red'}
-        fig_sentiment_bar_chart = px.bar(x=["Sentiment Types"],
-                                         y=[len(filtered_comments)],
-                                         color=[selected_sentiment],
+
+        all_comments_count = [len(categorized_comments_all[sentiment]) for sentiment in ["Positive", "Neutral", "Negative"]]
+        all_sentiments = ["Positive", "Neutral", "Negative"]
+        fig_sentiment_bar_chart = px.bar(x=all_sentiments,
+                                         y=all_comments_count,
+                                         color=all_sentiments,
                                          color_discrete_map=colors,
                                          labels={"x": "Sentiment Type", "y": "Number of Comments"},
-                                         title=f"Sentiment Distribution for {selected_sentiment} Comments",
+                                         title=f"Sentiment Distribution for All Comments",
                                          height=400)
         st.plotly_chart(fig_sentiment_bar_chart, use_container_width=True)
 
@@ -1034,3 +1037,4 @@ st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/hvamsi/) | "
     "[GitHub](https://github.com/hvamsiprakash)"
 )
+
