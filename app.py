@@ -1007,20 +1007,17 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         # Visualization Chart 2: Scatter Plot for Relationship between Polarity and Subjectivity for All Comments
         all_comments_polarity = []
         all_comments_subjectivity = []
-        all_comments_sentiment = []
 
         for sentiment_type in categorized_comments_all.values():
             for comment_info in sentiment_type:
                 all_comments_polarity.append(comment_info[1])
                 all_comments_subjectivity.append(comment_info[2])
-                all_comments_sentiment.append(comment_info[0])
 
         fig_scatter_plot_all = px.scatter(x=all_comments_polarity,
                                           y=all_comments_subjectivity,
-                                          color=all_comments_sentiment,
-                                          color_discrete_map=colors,
+                                          color=[selected_sentiment] * len(all_comments_polarity),
                                           labels={"x": "Polarity", "y": "Subjectivity"},
-                                          title=f"Relationship between Polarity and Subjectivity for All Comments",
+                                          title=f"Relationship between Polarity and Subjectivity ",
                                           height=400)
         st.plotly_chart(fig_scatter_plot_all, use_container_width=True)
 
@@ -1033,6 +1030,14 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         for idx, comment_info in enumerate(filtered_comments[:5]):
             comment_text, polarity, subjectivity = comment_info
             st.write(f"{idx + 1}. {comment_text} (Polarity: {polarity}, Subjectivity: {subjectivity})")
+
+# Footer
+st.sidebar.title("Connect with Me")
+st.sidebar.markdown(
+    "[LinkedIn](https://www.linkedin.com/in/hvamsi/) | "
+    "[GitHub](https://github.com/hvamsiprakash)"
+)
+
 
 # Footer
 st.sidebar.title("Connect with Me")
