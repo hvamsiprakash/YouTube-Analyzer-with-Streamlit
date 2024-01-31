@@ -404,14 +404,11 @@ def get_all_video_details(channel_id):
 
             video_details.append((title, video_id, likes, views, comments, upload_date, channel_name, url))
 
-        videos_df = pd.DataFrame(video_details,
-                                 columns=["Title", "Video ID", "Likes", "Views", "Comments", "Upload Date", "Channel",
-                                          "URL"])
+        videos_df = pd.DataFrame(video_details, columns=["Title", "Video ID", "Likes", "Views", "Comments", "Upload Date", "Channel", "URL"])
         return videos_df
     except googleapiclient.errors.HttpError as e:
         st.error(f"Error fetching video details: {e}")
-        return pd.DataFrame(columns=["Title", "Video ID", "Likes", "Views", "Comments", "Upload Date", "Channel",
-                                     "URL"])
+        return pd.DataFrame(columns=["Title", "Video ID", "Likes", "Views", "Comments", "Upload Date", "Channel", "URL"])
 
 # Function to get video recommendations based on user's topic
 def get_video_recommendations(topic, max_results=10):
@@ -444,8 +441,7 @@ def get_video_recommendations(topic, max_results=10):
             thumbnail_url = snippet_info.get("thumbnails", {}).get("default", {}).get("url", "N/A")
             comments = int(statistics_info.get("commentCount", 0))  # Include total comments
 
-            video_details.append(
-                (title, video_id, views, duration, channel_name, url, thumbnail_url, comments))  # Include total comments
+            video_details.append((title, video_id, views, duration, channel_name, url, thumbnail_url, comments))  # Include total comments
 
         return video_details
     except googleapiclient.errors.HttpError as e:
@@ -535,6 +531,7 @@ st.info(
     """
 )
 
+
 # Sidebar
 st.sidebar.title("YouTube Analyzer")
 st.sidebar.subheader("Select a Task")
@@ -555,51 +552,30 @@ if st.sidebar.checkbox("Channel Analytics"):
         st.write(f"**Total Videos:** {total_videos}")
         st.write(f"**Total Views:** {total_views}")
 
+        # Advanced Charts for Channel Analytics
+        st.subheader("Advanced Analytics Charts")
 
+        # Time Series Chart for Views
+        fig_views = px.line(videos_df, x="Upload Date", y="Views", title="Time Series Chart for Views", hover_data=["Title", "Likes", "Comments"])
+        fig_views.update_layout(height=600, width=1000)  # Increased size for better visibility
+        st.plotly_chart(fig_views)
 
-# Advanced Charts for Channel Analytics
-st.subheader("Analytics Charts")
+        # Bar Chart for Likes and Comments
+        fig_likes_comments = px.bar(videos_df, x="Upload Date", y=["Likes", "Comments"],
+                                    title="Bar Chart for Likes and Comments", barmode="group", hover_data=["Title"])
+        fig_likes_comments.update_layout(height=600, width=1000)  # Increased size for better visibility
+        st.plotly_chart(fig_likes_comments)
 
-# Time Series Chart for Views
-fig_views = px.line(videos_df, x="Upload Date", y="Views", title="Time Series Chart for Views")
-fig_views.update_layout(height=600, width=1000, title_x=0.5)  # Centered title for better visibility
-# Customize hover data for the Time Series Chart
-fig_views.update_traces(hovertemplate="<br>".join([
-    "Date: %{x}",
-    "Views: %{y}"
-]))
-st.plotly_chart(fig_views)
+        # New Chart: Scatter Plot for Likes vs Views
+        fig_likes_views = px.scatter(videos_df, x="Likes", y="Views", color="Channel",
+                                     title="Scatter Plot for Likes vs Views", hover_data=["Title"])
+        fig_likes_views.update_layout(height=600, width=1000)  # Increased size for better visibility
+        st.plotly_chart(fig_likes_views)
 
-# Bar Chart for Likes and Comments
-fig_likes_comments = px.bar(videos_df, x="Upload Date", y=["Likes", "Comments"],
-                            title="Bar Chart for Likes and Comments Over Time", barmode="group")
-fig_likes_comments.update_layout(height=600, width=1000, title_x=0.5)  # Centered title for better visibility
-# Customize hover data for the Bar Chart
-fig_likes_comments.update_traces(hovertemplate="<br>".join([
-    "Date: %{x}",
-    "Likes: %{y[0]}",
-    "Comments: %{y[1]}"
-]))
-st.plotly_chart(fig_likes_comments)
-
-# Scatter Plot for Duration vs Views
-videos_df['Duration'] = videos_df['Duration'].str.extract('(\d+)').astype(float)  # Extract numeric values from 'Duration'
-fig_duration_views = px.scatter(videos_df, x="Duration", y="Views", title="Scatter Plot for Duration vs Views")
-fig_duration_views.update_layout(height=600, width=1000, title_x=0.5)  # Centered title for better visibility
-# Customize hover data for the Scatter Plot
-fig_duration_views.update_traces(hovertemplate="<br>".join([
-    "Title: %{text}",
-    "Duration: %{x}",
-    "Views: %{y}"
-]))
-st.plotly_chart(fig_duration_views)
-
-# Additional: Display DataFrame of video details with clickable URLs
-st.subheader("All Video Details")
-videos_df['URL'] = videos_df['URL'].apply(lambda x: f"<a href='{x}' target='_blank'>{x}</a>")
-st.write(videos_df[['Title', 'Video ID', 'Likes', 'Views', 'Comments', 'Upload Date', 'Channel', 'URL']].to_html(escape=False), unsafe_allow_html=True)
-
-
+        # Additional: Display DataFrame of video details with clickable URLs
+        st.subheader("All Video Details")
+        videos_df['URL'] = videos_df['URL'].apply(lambda x: f"<a href='{x}' target='_blank'>{x}</a>")
+        st.write(videos_df[['Title', 'Video ID', 'Likes', 'Views', 'Comments', 'Upload Date', 'Channel', 'URL']].to_html(escape=False), unsafe_allow_html=True)
 
 # Task 2: Video Recommendation based on User's Topic of Interest
 if st.sidebar.checkbox("Video Recommendation"):
@@ -621,10 +597,11 @@ if st.sidebar.checkbox("Video Recommendation"):
             st.write(f"Watch Video: [Link]({video[5]})")
             st.write("---")
 
+
 # Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
-    video_id_sentiment = st.sidebar.text_input("Enter Video ID", value=" ")
+    video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
 
     # Allow the user to choose the type of comments
     selected_sentiment = st.sidebar.selectbox("Select Comment Type", ["Positive", "Neutral", "Negative"])
@@ -648,8 +625,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         for sentiment, sentiment_comments in categorized_comments_sentiment.items():
             sentiment_df.extend([(sentiment, comment[1], comment[2]) for comment in sentiment_comments])
 
-        sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'},
-                                     title='Sentiment Analysis')
+        sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title='Sentiment Analysis')
         st.plotly_chart(sentiment_chart)
 
         # Display categorized comments
@@ -658,6 +634,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             for comment in sentiment_comments:
                 st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
                 st.write(f"  {comment[0]}")
+
 
 # Footer
 st.sidebar.title("Connect with Me")
