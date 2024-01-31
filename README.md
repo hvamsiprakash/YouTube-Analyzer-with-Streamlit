@@ -13,18 +13,18 @@ Follow the instructions in the app's documentation to obtain and set up your API
 Input a valid Channel ID to unleash comprehensive analytics, or enter an exciting Video ID to discover sentiment and more.
 Get ready to embark on a thrilling journey of insights and exploration with YouTube IDs!
 
-Features
-Channel Analytics
+Features:
+Channel Analytics:
 Input a valid Channel ID to get detailed analytics, including channel title, description, country, total videos, and total views.
 Explore advanced charts, such as time series charts for views, bar charts for likes and comments, and scatter plots for likes vs views.
 View all video details in a DataFrame with clickable URLs.
 
-Video Recommendation
+Video Recommendation:
 Enter a topic of interest to get video recommendations based on YouTube search results.
 Discover video details, including title, views, channel, and total comments.
 Access direct links to recommended videos.
 
-Sentimental Analysis
+Sentimental Analysis:
 Input a Video ID to analyze the sentiment of comments.
 Choose between positive, neutral, or negative comments for sentiment analysis.
 Visualize sentiment distribution with a pie chart and view sentiment-specific comments.
