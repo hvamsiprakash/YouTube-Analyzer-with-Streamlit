@@ -262,12 +262,6 @@ if st.sidebar.checkbox("Video Recommendation"):
             st.write(f"Watch Video: [Link]({video[4]})")
             st.write("---")
 
-# ... (Previous code remains unchanged)
-
-# ... (Previous code remains unchanged)
-
-# ... (Previous code remains unchanged)
-
 # Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
