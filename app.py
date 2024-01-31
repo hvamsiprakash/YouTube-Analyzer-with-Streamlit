@@ -575,6 +575,8 @@ if st.sidebar.checkbox("Video Recommendation"):
 
 # ... (Previous code remains unchanged)
 
+# ... (Previous code remains unchanged)
+
 # Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
@@ -605,14 +607,33 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         else:
             filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity < 0]
 
-        # Display sentiment analysis results
-        st.subheader(f"{selected_sentiment} Sentiment Comments")
-        st.write(f"Total {selected_sentiment} Comments: {len(filtered_comments)}")
+        # Analyze and categorize comments sentiment
+        categorized_comments = analyze_and_categorize_comments(filtered_comments)
 
-        # Display comments
-        st.write("### Selected Sentiment Comments:")
-        for comment in filtered_comments:
-            st.write(f"- {comment}")
+        # Display video title and visualization chart
+        st.subheader("Video Information")
+        st.write(f"**Video Title:** {video_title}")
+        # Additional code for displaying video information
+
+        # Additional code for displaying visualization chart
+        # Adjust the chart type and settings according to your preferences
+        fig_sentiment_chart = px.pie(names=["Positive", "Neutral", "Negative"],
+                                     values=[len(categorized_comments["Positive"]),
+                                             len(categorized_comments["Neutral"]),
+                                             len(categorized_comments["Negative"])],
+                                     title=f"Sentiment Distribution for {selected_sentiment} Comments",
+                                     hole=0.5)
+        st.plotly_chart(fig_sentiment_chart, use_container_width=True)
+
+        # Display sentiment analysis results
+        st.subheader(f"Selected Sentiment Type: {selected_sentiment}")
+        st.write(f"Total {selected_sentiment} Comments: {len(categorized_comments[selected_sentiment])}")
+
+        # Additional code for displaying comments
+        st.subheader(f"{selected_sentiment} Comments:")
+        for idx, comment_info in enumerate(categorized_comments[selected_sentiment][:5]):
+            comment_text, polarity, subjectivity = comment_info
+            st.write(f"{idx + 1}. {comment_text} (Polarity: {polarity}, Subjectivity: {subjectivity})")
 
 # Footer
 st.sidebar.title("Connect with Me")
