@@ -571,14 +571,6 @@ if st.sidebar.checkbox("Video Recommendation"):
             st.write(f"Watch Video: [Link]({video[4]})")
             st.write("---")
 
-# Task 3: Sentimental Analysis of Comments with Visualization
-if st.sidebar.checkbox("Sentimental Analysis"):
-    st.sidebar.subheader("Sentimental Analysis")
-    video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
-
-    # Allow the user to choose the type of comments
-    selected_sentiment = st.sidebar.radio("Select Comment Type", ["Positive", "Neutral", "Negative"])
-
     if st.sidebar.button("Analyze Sentiments"):
         comments_sentiment = get_video_comments(video_id_sentiment)
 
@@ -605,11 +597,10 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         st.plotly_chart(sentiment_chart)
 
         # Display categorized comments
-        for sentiment, sentiment_comments in categorized_comments_sentiment.items():
-            st.subheader(sentiment)
-            for comment in sentiment_comments:
-                st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
-                st.write(f"  {comment[0]}")
+        st.subheader(sentiment_title)
+        for comment in categorized_comments_sentiment[selected_sentiment]:
+            st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
+            st.write(f"  {comment[0]}")
 
 
 # Footer
