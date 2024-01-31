@@ -571,12 +571,10 @@ if st.sidebar.checkbox("Video Recommendation"):
             st.write(f"Watch Video: [Link]({video[4]})")
             st.write("---")
 
-# ... (Previous code remains unchanged)
-
 # Task 3: Sentimental Analysis of Comments with Visualization
 if st.sidebar.checkbox("Sentimental Analysis"):
     st.sidebar.subheader("Sentimental Analysis")
-    video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
+    video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="")
 
     # Fetch video title for display
     video_info = youtube.videos().list(
@@ -599,12 +597,22 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         if selected_sentiment == "Positive":
             filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity > 0]
         elif selected_sentiment == "Neutral":
-            filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment
+            filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity == 0]
+        else:  # Add this part to complete the if statement block
+            filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity < 0]
 
-   # Footer
+        # Analyze and categorize comments sentiment
+        categorized_comments = analyze_and_categorize_comments(filtered_comments)
+
+        # Display sentiment analysis results
+        st.subheader(f"{selected_sentiment} Sentiment Comments")
+        st.write(f"Total {selected_sentiment} Comments: {len(categorized_comments[selected_sentiment])}")
+
+     
+
+# Footer
 st.sidebar.title("Connect with Me")
 st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
     "[GitHub](https://github.com/your-github-profile)"
 )
-
