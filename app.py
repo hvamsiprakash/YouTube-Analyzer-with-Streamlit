@@ -585,10 +585,13 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         # Filter comments based on the selected sentiment
         if selected_sentiment == "Positive":
             filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity > 0]
+            sentiment_title = "Positive Comments"
         elif selected_sentiment == "Neutral":
             filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity == 0]
+            sentiment_title = "Neutral Comments"
         else:
             filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity < 0]
+            sentiment_title = "Negative Comments"
 
         # Analyze and categorize comments sentiment
         categorized_comments_sentiment = analyze_and_categorize_comments(filtered_comments)
@@ -598,7 +601,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         for sentiment, sentiment_comments in categorized_comments_sentiment.items():
             sentiment_df.extend([(sentiment, comment[1], comment[2]) for comment in sentiment_comments])
 
-        sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title='Sentiment Analysis')
+        sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title=f'Sentiment Analysis - {sentiment_title}')
         st.plotly_chart(sentiment_chart)
 
         # Display categorized comments
@@ -607,3 +610,12 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             for comment in sentiment_comments:
                 st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
                 st.write(f"  {comment[0]}")
+
+# Footer
+st.sidebar.title("Connect with Me")
+st.sidebar.markdown(
+    "[LinkedIn](https://www.linkedin.com/in/your-linkedin-profile) | "
+    "[GitHub](https://github.com/your-github-profile)"
+)
+
+
