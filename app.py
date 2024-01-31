@@ -307,30 +307,6 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Importing necessary libraries and modules
 import streamlit as st
 import googleapiclient.discovery
@@ -555,23 +531,22 @@ if st.sidebar.checkbox("Channel Analytics"):
         # Advanced Charts for Channel Analytics
         st.subheader("Analytics Charts")
 
-# Time Series Chart for Views
-fig_views = px.line(videos_df, x="Title", y="Views", title="Views Over Time for Each Video", hover_data=["Title", "Duration", "Likes", "Comments"])
-fig_views.update_layout(height=600, width=1000, hovermode="x unified")  # Increased size for better visibility
-st.plotly_chart(fig_views, use_container_width=True)
+        # Time Series Chart for Views
+        fig_views = px.line(videos_df, x="Title", y="Views", title="Views Over Time for Each Video", hover_data=["Title", "Duration", "Likes", "Comments"])
+        fig_views.update_layout(height=600, width=1000, hovermode="x unified")  # Increased size for better visibility
+        st.plotly_chart(fig_views, use_container_width=True)
 
-# Bar Chart for Likes and Comments
-fig_likes_comments = px.bar(videos_df, x="Title", y=["Likes", "Comments"],
-                            title="Likes and Comments Comparison for Each Video", barmode="group", hover_data=["Title", "Duration", "Views"])
-fig_likes_comments.update_layout(height=600, width=1000, hovermode="x unified")  # Increased size for better visibility
-st.plotly_chart(fig_likes_comments, use_container_width=True)
+        # Bar Chart for Likes and Comments
+        fig_likes_comments = px.bar(videos_df, x="Title", y=["Likes", "Comments"],
+                                    title="Likes and Comments Comparison for Each Video", barmode="group", hover_data=["Title", "Duration", "Views"])
+        fig_likes_comments.update_layout(height=600, width=1000, hovermode="x unified")  # Increased size for better visibility
+        st.plotly_chart(fig_likes_comments, use_container_width=True)
 
-# New Chart: Scatter Plot for Likes vs Views
-fig_likes_views = px.scatter(videos_df, x="Likes", y="Views", color="Channel",
-                             title="Scatter Plot for Likes vs Views Across Videos", hover_data=["Title", "Duration"])
-fig_likes_views.update_layout(height=600, width=1000, hovermode="closest")  # Increased size for better visibility
-st.plotly_chart(fig_likes_views, use_container_width=True)
-
+        # New Chart: Scatter Plot for Likes vs Views
+        fig_likes_views = px.scatter(videos_df, x="Likes", y="Views", color="Channel",
+                                     title="Scatter Plot for Likes vs Views Across Videos", hover_data=["Title", "Duration"])
+        fig_likes_views.update_layout(height=600, width=1000, hovermode="closest")  # Increased size for better visibility
+        st.plotly_chart(fig_likes_views, use_container_width=True)
 
         # Additional: Display DataFrame of video details with clickable URLs
         st.subheader("All Video Details")
@@ -635,6 +610,7 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             for comment in sentiment_comments:
                 st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
                 st.write(f"  {comment[0]}")
+
 
 
 # Footer
