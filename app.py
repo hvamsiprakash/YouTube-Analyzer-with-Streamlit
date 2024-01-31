@@ -624,27 +624,23 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity < 0]
             sentiment_title = "Negative Comments"
 
-        # Check if there are comments for the selected sentiment
-        if filtered_comments:
-            # Analyze and categorize comments sentiment
-            categorized_comments_sentiment = analyze_and_categorize_comments(filtered_comments)
+        # Analyze and categorize comments sentiment
+        categorized_comments_sentiment = analyze_and_categorize_comments(filtered_comments)
 
-            # Display sentiment distribution chart
-            sentiment_df = []
-            for sentiment, sentiment_comments in categorized_comments_sentiment.items():
-                sentiment_df.extend([(sentiment, comment[1], comment[2]) for comment in sentiment_comments])
+        # Display sentiment distribution chart
+        sentiment_df = []
+        for sentiment, sentiment_comments in categorized_comments_sentiment.items():
+            sentiment_df.extend([(sentiment, comment[1], comment[2]) for comment in sentiment_comments])
 
-            sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title=f'Sentiment Analysis - {sentiment_title}')
-            st.plotly_chart(sentiment_chart)
+        sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title=f'Sentiment Analysis - {sentiment_title}')
+        st.plotly_chart(sentiment_chart)
 
-            # Display categorized comments
-            for sentiment, sentiment_comments in categorized_comments_sentiment.items():
-                st.subheader(sentiment)
-                for comment in sentiment_comments:
-                    st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
-                    st.write(f"  {comment[0]}")
-        else:
-            st.warning(f"No {selected_sentiment} comments found for the selected video.")
+        # Display categorized comments for the selected sentiment
+        st.subheader(sentiment_title)
+        for comment in categorized_comments_sentiment[selected_sentiment]:
+            st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
+            st.write(f"  {comment[0]}")
+
 
 
 
