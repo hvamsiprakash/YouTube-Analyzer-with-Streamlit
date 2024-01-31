@@ -532,12 +532,12 @@ if st.sidebar.checkbox("Channel Analytics"):
         st.subheader("Analytics Charts")
 
         # Time Series Chart for Views
-        fig_views = px.line(videos_df, x="Title", y="Views", title="Views Over Time for Each Video", hover_data=["Title", "Duration", "Likes", "Comments"])
+        fig_views = px.line(videos_df, x="Upload Date", y="Views", title="Views Over Time for Each Video", hover_data=["Title", "Duration", "Likes", "Comments"])
         fig_views.update_layout(height=600, width=1000, hovermode="x unified")  # Increased size for better visibility
         st.plotly_chart(fig_views, use_container_width=True)
 
         # Bar Chart for Likes and Comments
-        fig_likes_comments = px.bar(videos_df, x="Title", y=["Likes", "Comments"],
+        fig_likes_comments = px.bar(videos_df, x="Upload Date", y=["Likes", "Comments"],
                                     title="Likes and Comments Comparison for Each Video", barmode="group", hover_data=["Title", "Duration", "Views"])
         fig_likes_comments.update_layout(height=600, width=1000, hovermode="x unified")  # Increased size for better visibility
         st.plotly_chart(fig_likes_comments, use_container_width=True)
@@ -610,8 +610,6 @@ if st.sidebar.checkbox("Sentimental Analysis"):
             for comment in sentiment_comments:
                 st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
                 st.write(f"  {comment[0]}")
-
-
 
 # Footer
 st.sidebar.title("Connect with Me")
