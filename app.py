@@ -652,11 +652,12 @@ if st.sidebar.checkbox("Sentimental Analysis"):
         sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title='Sentiment Analysis')
         st.plotly_chart(sentiment_chart)
 
-        # Display categorized comments for the chosen sentiment category
-        st.subheader(f"{selected_sentiment} Comments")
-        for comment in categorized_comments_sentiment[selected_sentiment]:
-            st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
-            st.write(f"  {comment[0]}")
+        # Display categorized comments
+        for sentiment, sentiment_comments in categorized_comments_sentiment.items():
+            st.subheader(sentiment)
+            for comment in sentiment_comments:
+                st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
+                st.write(f"  {comment[0]}")
 
 
 
