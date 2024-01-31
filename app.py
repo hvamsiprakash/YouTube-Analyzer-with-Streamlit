@@ -602,6 +602,51 @@ if st.sidebar.checkbox("Video Recommendation"):
             st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
             st.write(f"  {comment[0]}")
 
+# Task 3: Sentimental Analysis of Comments with Visualization
+if st.sidebar.checkbox("Sentimental Analysis"):
+    st.sidebar.subheader("Sentimental Analysis")
+    video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="YOUR_VIDEO_ID")
+
+    # Allow the user to choose the type of comments
+    selected_sentiment = st.sidebar.selectbox("Select Comment Type", ["Positive", "Neutral", "Negative"])
+
+    if st.sidebar.button("Analyze Sentiments"):
+        comments_sentiment = get_video_comments(video_id_sentiment)
+
+        # Filter comments based on the selected sentiment
+        if selected_sentiment == "Positive":
+            filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity > 0]
+            sentiment_title = "Positive Comments"
+        elif selected_sentiment == "Neutral":
+            filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity == 0]
+            sentiment_title = "Neutral Comments"
+        else:
+            filtered_comments = [comment for comment in comments_sentiment if TextBlob(comment).sentiment.polarity < 0]
+            sentiment_title = "Negative Comments"
+
+        # Check if there are comments for the selected sentiment
+        if filtered_comments:
+            # Analyze and categorize comments sentiment
+            categorized_comments_sentiment = analyze_and_categorize_comments(filtered_comments)
+
+            # Display sentiment distribution chart
+            sentiment_df = []
+            for sentiment, sentiment_comments in categorized_comments_sentiment.items():
+                sentiment_df.extend([(sentiment, comment[1], comment[2]) for comment in sentiment_comments])
+
+            sentiment_chart = px.scatter(sentiment_df, x=1, y=2, color=0, labels={'1': 'Polarity', '2': 'Subjectivity'}, title=f'Sentiment Analysis - {sentiment_title}')
+            st.plotly_chart(sentiment_chart)
+
+            # Display categorized comments
+            for sentiment, sentiment_comments in categorized_comments_sentiment.items():
+                st.subheader(sentiment)
+                for comment in sentiment_comments:
+                    st.write(f"- *Polarity*: {comment[1]}, *Subjectivity*: {comment[2]}")
+                    st.write(f"  {comment[0]}")
+        else:
+            st.warning(f"No {selected_sentiment} comments found for the selected video.")
+
+
 
 # Footer
 st.sidebar.title("Connect with Me")
