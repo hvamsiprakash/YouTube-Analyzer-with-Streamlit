@@ -645,17 +645,15 @@ if st.sidebar.checkbox("Sentimental Analysis"):
                                          height=400)
         st.plotly_chart(fig_sentiment_bar_chart, use_container_width=True)
 
-        # Visualization Chart 2: Add another advanced chart (e.g., bar chart) for additional insights
-        # Customize the chart based on your preferences
-        # Example: Bar Chart for Top Positive and Negative Words
-        # Additional code for another advanced chart
-        fig_advanced_chart = px.bar(x=["Top Positive Words", "Top Negative Words"],
-                                    y=[10, 10],
-                                    color=["Top Positive Words", "Top Negative Words"],
-                                    labels={"x": "Word Type", "y": "Frequency"},
-                                    title="Top Positive and Negative Words",
-                                    height=400)
-        st.plotly_chart(fig_advanced_chart, use_container_width=True)
+        # Visualization Chart 2: Scatter Plot based on Polarity
+        fig_scatter_polarity = px.scatter(x=[analysis.sentiment.polarity for analysis in TextBlob(comment).sentiment.polarity],
+                                          y=[len(categorized_comments["Positive"]), len(categorized_comments["Neutral"]),
+                                             len(categorized_comments["Negative"])],
+                                          color=[analysis.sentiment.polarity for analysis in TextBlob(comment).sentiment.polarity],
+                                          labels={"x": "Polarity", "y": "Number of Comments"},
+                                          title="Scatter Plot of Polarity vs Number of Comments",
+                                          height=400)
+        st.plotly_chart(fig_scatter_polarity, use_container_width=True)
 
         # Display sentiment analysis results
         st.subheader(f"Selected Sentiment Type: {selected_sentiment}")
@@ -673,11 +671,3 @@ st.sidebar.markdown(
     "[LinkedIn](https://www.linkedin.com/in/hvamsi/) | "
     "[GitHub](https://github.com/hvamsiprakash)"
 )
-
-
-
-
-
-
-
-
