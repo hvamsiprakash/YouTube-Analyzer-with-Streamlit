@@ -1,357 +1,12 @@
-# # Importing necessary libraries and modules
-# import streamlit as st
-# import googleapiclient.discovery
-# import pandas as pd
-# import plotly.express as px
-# from textblob import TextBlob
-
-# # Set your YouTube Data API key here
-# YOUTUBE_API_KEY = "AIzaSyD7OUR71LzrVXntYUXlSjUxv1ZCkjNYpGM"
-
-# # Initialize the YouTube Data API client
-# youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
-
-# # Function to get channel analytics
-# def get_channel_analytics(channel_id):
-#     try:
-#         response = youtube.channels().list(
-#             part="snippet,statistics",
-#             id=channel_id
-#         ).execute()
-
-#         channel_info = response.get("items", [])[0]["snippet"]
-#         statistics_info = response.get("items", [])[0]["statistics"]
-
-#         channel_title = channel_info.get("title", "N/A")
-#         description = channel_info.get("description", "N/A")
-#         country = channel_info.get("country", "N/A")
-
-#         total_videos = int(statistics_info.get("videoCount", 0))
-#         total_views = int(statistics_info.get("viewCount", 0))
-
-#         # Fetch all video details for the dataframe
-#         videos_df = get_all_video_details(channel_id)
-
-#         return channel_title, description, country, total_videos, total_views, videos_df
-#     except googleapiclient.errors.HttpError as e:
-#         st.error(f"Error fetching channel analytics: {e}")
-#         return None, None, None, None, None, None
-
-# # Function to fetch all video details for a channel
-# def get_all_video_details(channel_id):
-#     try:
-#         response = youtube.search().list(
-#             channelId=channel_id,
-#             type="video",
-#             part="id,snippet",
-#             maxResults=50
-#         ).execute()
-
-#         video_details = []
-#         for item in response.get("items", []):
-#             video_id = item["id"]["videoId"]
-#             title = item["snippet"]["title"]
-#             url = f"https://www.youtube.com/watch?v={video_id}"
-
-#             # Use a separate request to get video statistics
-#             video_info = youtube.videos().list(
-#                 part="statistics,snippet",
-#                 id=video_id
-#             ).execute()
-
-#             statistics_info = video_info.get("items", [])[0]["statistics"]
-#             snippet_info = video_info.get("items", [])[0]["snippet"]
-#             views = int(statistics_info.get("viewCount", 0))
-#             likes = int(statistics_info.get("likeCount", 0))
-#             comments = int(statistics_info.get("commentCount", 0))
-#             upload_date = snippet_info.get("publishedAt", "N/A")
-#             channel_name = snippet_info.get("channelTitle", "N/A")
-#             thumbnail_url = snippet_info.get("thumbnails", {}).get("default", {}).get("url", "N/A")
-
-#             video_details.append((title, video_id, likes, views, comments, upload_date, channel_name, url))
-
-#         videos_df = pd.DataFrame(video_details, columns=["Title", "Video ID", "Likes", "Views", "Comments", "Upload Date", "Channel", "URL"])
-#         return videos_df
-#     except googleapiclient.errors.HttpError as e:
-#         st.error(f"Error fetching video details: {e}")
-#         return pd.DataFrame(columns=["Title", "Video ID", "Likes", "Views", "Comments", "Upload Date", "Channel", "URL"])
-
-# # Function to get video recommendations based on user's topic
-# def get_video_recommendations(topic, max_results=10):
-#     try:
-#         response = youtube.search().list(
-#             q=topic,
-#             type="video",
-#             part="id,snippet",
-#             maxResults=max_results,
-#             order="viewCount"
-#         ).execute()
-
-#         video_details = []
-#         for item in response.get("items", []):
-#             video_id = item["id"]["videoId"]
-#             title = item["snippet"]["title"]
-#             url = f"https://www.youtube.com/watch?v={video_id}"
-
-#             # Use a separate request to get video statistics
-#             video_info = youtube.videos().list(
-#                 part="statistics,snippet",
-#                 id=video_id
-#             ).execute()
-
-#             statistics_info = video_info.get("items", [])[0]["statistics"]
-#             snippet_info = video_info.get("items", [])[0]["snippet"]
-#             views = int(statistics_info.get("viewCount", 0))
-#             channel_name = snippet_info.get("channelTitle", "N/A")
-#             thumbnail_url = snippet_info.get("thumbnails", {}).get("default", {}).get("url", "N/A")
-#             comments = int(statistics_info.get("commentCount", 0))  # Include total comments
-
-#             video_details.append((title, video_id, views, channel_name, url, thumbnail_url, comments))  # Include total comments
-
-#         return video_details
-#     except googleapiclient.errors.HttpError as e:
-#         st.error(f"Error fetching video recommendations: {e}")
-#         return None
-
-# # Function to get video comments
-# def get_video_comments(video_id):
-#     try:
-#         comments = []
-#         results = youtube.commentThreads().list(
-#             part="snippet",
-#             videoId=video_id,
-#             textFormat="plainText",
-#             maxResults=100
-#         ).execute()
-
-#         while "items" in results:
-#             for item in results["items"]:
-#                 comment = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
-#                 comments.append(comment)
-
-#             # Get the next set of results
-#             if "nextPageToken" in results:
-#                 results = youtube.commentThreads().list(
-#                     part="snippet",
-#                     videoId=video_id,
-#                     textFormat="plainText",
-#                     pageToken=results["nextPageToken"],
-#                     maxResults=100
-#                 ).execute()
-#             else:
-#                 break
-
-#         return comments
-#     except googleapiclient.errors.HttpError as e:
-#         st.error(f"Error fetching comments: {e}")
-#         return []
-
-# # Function to analyze and categorize comments sentiment
-# def analyze_and_categorize_comments(comments):
-#     try:
-#         categorized_comments = {'Positive': [], 'Neutral': [], 'Negative': []}
-
-#         for comment in comments:
-#             analysis = TextBlob(comment)
-#             # Classify the polarity of the comment
-#             if analysis.sentiment.polarity > 0:
-#                 categorized_comments['Positive'].append((comment, analysis.sentiment.polarity, analysis.sentiment.subjectivity))
-#             elif analysis.sentiment.polarity == 0:
-#                 categorized_comments['Neutral'].append((comment, analysis.sentiment.polarity, analysis.sentiment.subjectivity))
-#             else:
-#                 categorized_comments['Negative'].append((comment, analysis.sentiment.polarity, analysis.sentiment.subjectivity))
-
-#         return categorized_comments
-#     except Exception as e:
-#         st.error(f"Error analyzing comments: {e}")
-#         return {'Positive': [], 'Neutral': [], 'Negative': []}
-
-# # Main Streamlit app
-# st.title("Welcome to YouTube Analyzer!")
-
-# # Description of the YouTube Analyzer app
-# st.markdown(
-#     """
-#     🚀 Explore the fascinating world of YouTube with our Analyzer tool! Dive into detailed channel analytics, 
-#     discover top video recommendations, and unravel the sentiment hidden in comments. 
-#     Get ready for an interactive journey with vibrant charts and insightful statistics. 
-#     Let's embark on the YouTube adventure together! 🎉
-#     """
-# )
-# # Warning about YouTube API key
-# st.warning(
-#     """
-#     ⚠️ **Important Notice:** The YouTube Data API key used in this app is for demonstration purposes only.
-#     It may expire or reach its usage limit, resulting in errors. 
-#     Replace it with your own API key to ensure uninterrupted access to YouTube data. 
-#     Follow the instructions in the app's documentation to obtain and set up your API key.
-#     """
-# )
-# # Note about using YouTube IDs
-# st.info(
-#     """
-#     🚀 **Pro Tip:** To unlock the full power of YouTube Analyzer, use valid YouTube IDs for channels and videos!
-#     Input a valid Channel ID to unleash comprehensive analytics, or enter an exciting Video ID to discover sentiment and more.
-#     Get ready to embark on a thrilling journey of insights and exploration with YouTube IDs!
-#     """
-# )
-
-
-# # Sidebar
-# st.sidebar.title("YouTube Analyzer")
-# st.sidebar.subheader("Select a Task")
-
-# # Task 1: Channel Analytics
-# if st.sidebar.checkbox("Channel Analytics"):
-#     st.sidebar.subheader("Channel Analytics")
-#     channel_id_analytics = st.sidebar.text_input("Enter Channel ID for Analytics", value="")
-
-#     if st.sidebar.button("Get Channel Analytics"):
-#         channel_title, description, country, total_videos, total_views, videos_df = get_channel_analytics(channel_id_analytics)
-
-#         # Display Channel Overview
-#         st.subheader("Channel Overview")
-#         st.write(f"**Channel Title:** {channel_title}")
-#         st.write(f"**Description:** {description}")
-#         st.write(f"**Country:** {country}")
-#         st.write(f"**Total Videos:** {total_videos}")
-#         st.write(f"**Total Views:** {total_views}")
-
-#         # Advanced Charts for Channel Analytics
-#         st.subheader("Analytics Charts")
-
-#         # Time Series Chart for Views
-#         fig_views = px.line(videos_df, x="Title", y="Views", title="Views Over Time for Each Video", hover_data=["Title", "Likes", "Comments"])
-#         fig_views.update_layout(height=600, width=1000, hovermode="x unified")  # Increased size for better visibility
-#         st.plotly_chart(fig_views, use_container_width=True)
-
-#         # Bar Chart for Likes and Comments
-#         fig_likes_comments = px.bar(videos_df, x="Title", y=["Likes", "Comments"],
-#                                     title="Likes and Comments Comparison for Each Video", barmode="group", hover_data=["Title", "Views"])
-#         fig_likes_comments.update_layout(height=600, width=1000, hovermode="x unified")  # Increased size for better visibility
-#         st.plotly_chart(fig_likes_comments, use_container_width=True)
-
-#         # New Chart: Scatter Plot for Likes vs Views
-#         fig_likes_views = px.scatter(videos_df, x="Likes", y="Views", color="Channel",
-#                                      title="Scatter Plot for Likes vs Views Across Videos", hover_data=["Title"])
-#         fig_likes_views.update_layout(height=600, width=1000, hovermode="closest")  # Increased size for better visibility
-#         st.plotly_chart(fig_likes_views, use_container_width=True)
-
-#         # Additional: Display DataFrame of video details with clickable URLs
-#         st.subheader("All Video Details")
-#         videos_df['URL'] = videos_df['URL'].apply(lambda x: f"<a href='{x}' target='_blank'>{x}</a>")
-#         st.write(videos_df[['Title', 'Video ID', 'Likes', 'Views', 'Comments', 'Upload Date', 'Channel', 'URL']].to_html(escape=False), unsafe_allow_html=True)
-
-# # Task 2: Video Recommendation based on User's Topic of Interest
-# if st.sidebar.checkbox("Video Recommendation"):
-#     st.sidebar.subheader("Video Recommendation")
-#     topic_interest = st.sidebar.text_input("Enter Topic of Interest", value="")
-
-#     if st.sidebar.button("Get Video Recommendations"):
-#         video_recommendations = get_video_recommendations(topic_interest, max_results=10)
-
-#         # Display Video Recommendations
-#         st.subheader("Video Recommendations")
-#         for video in video_recommendations:
-#             st.write(f"**{video[0]}**")
-#             st.write(f"<img src='{video[5]}' alt='Thumbnail' style='max-height: 150px;'>", unsafe_allow_html=True)
-#             st.write(f"Video ID: {video[1]}")
-#             st.write(f"Views: {video[2]}")
-#             st.write(f"Channel: {video[3]}")
-#             st.write(f"Total Comments: {video[6]}")  # Display total comments
-#             st.write(f"Watch Video: [Link]({video[4]})")
-#             st.write("---")
-
-# # Task 3: Sentimental Analysis of Comments with Visualization
-# if st.sidebar.checkbox("Sentimental Analysis"):
-#     st.sidebar.subheader("Sentimental Analysis")
-#     video_id_sentiment = st.sidebar.text_input("Enter Video ID", value="")
-
-#     # Fetch video title for display
-#     video_info = youtube.videos().list(
-#         part="snippet",
-#         id=video_id_sentiment
-#     ).execute()
-
-#     video_title = video_info.get("items", [])[0]["snippet"]["title"] if video_info.get("items") else "Video Title N/A"
-
-#     # Display video title in the main interface
-#     st.subheader(f"Sentimental Analysis for Video: {video_title}")
-
-#     # Allow the user to choose the type of comments
-#     selected_sentiment = st.sidebar.selectbox("Select Comment Type", ["Positive", "Neutral", "Negative"])
-
-#     if st.sidebar.button("Analyze Sentiments"):
-#         comments_sentiment = get_video_comments(video_id_sentiment)
-
-#         # Analyze and categorize comments sentiment for all comments
-#         categorized_comments_all = analyze_and_categorize_comments(comments_sentiment)
-
-#         # Filter comments based on the selected sentiment
-#         filtered_comments = categorized_comments_all.get(selected_sentiment, [])
-
-#         # Display video title and visualization charts
-#         st.subheader("Video Information")
-#         st.write(f"**Video Title:** {video_title}")
-
-#         # Visualization Chart 1: Bar Chart for Sentiment Distribution with Differentiated Colors
-#         colors = {'Positive': 'green', 'Neutral': 'gray', 'Negative': 'red'}
-
-#         all_comments_count = [len(categorized_comments_all[sentiment]) for sentiment in ["Positive", "Neutral", "Negative"]]
-#         all_sentiments = ["Positive", "Neutral", "Negative"]
-#         fig_sentiment_bar_chart = px.bar(x=all_sentiments,
-#                                          y=all_comments_count,
-#                                          color=all_sentiments,
-#                                          color_discrete_map=colors,
-#                                          labels={"x": "Sentiment Type", "y": "Number of Comments"},
-#                                          title=f"Sentiment Distribution for All Comments",
-#                                          height=400)
-#         st.plotly_chart(fig_sentiment_bar_chart, use_container_width=True)
-
-#         # Visualization Chart 2: Scatter Plot for Relationship between Polarity and Subjectivity for All Comments
-#         all_comments_polarity = []
-#         all_comments_subjectivity = []
-
-#         for sentiment_type in categorized_comments_all.values():
-#             for comment_info in sentiment_type:
-#                 all_comments_polarity.append(comment_info[1])
-#                 all_comments_subjectivity.append(comment_info[2])
-
-#         fig_scatter_plot_all = px.scatter(x=all_comments_polarity,
-#                                           y=all_comments_subjectivity,
-#                                           color=[selected_sentiment] * len(all_comments_polarity),
-#                                           labels={"x": "Polarity", "y": "Subjectivity"},
-#                                           title=f"Relationship between Polarity and Subjectivity ",
-#                                           height=400)
-#         st.plotly_chart(fig_scatter_plot_all, use_container_width=True)
-
-#         # Display sentiment analysis results for the selected sentiment type
-#         st.subheader(f"Selected Sentiment Type: {selected_sentiment}")
-#         st.write(f"Total {selected_sentiment} Comments: {len(filtered_comments)}")
-
-#         # Additional code for displaying comments
-#         st.subheader(f"{selected_sentiment} Comments:")
-#         for idx, comment_info in enumerate(filtered_comments[:20]):
-#             comment_text, polarity, subjectivity = comment_info
-#             st.write(f"{idx + 1}. {comment_text} (Polarity: {polarity}, Subjectivity: {subjectivity})")
-
-# # Footer
-# st.sidebar.title("Connect with Me")
-# st.sidebar.markdown(
-#     "[LinkedIn](https://www.linkedin.com/in/hvamsi/) | "
-#     "[GitHub](https://github.com/hvamsiprakash)"
-# )
-
-
-
 # Importing necessary libraries
 import streamlit as st
 import googleapiclient.discovery
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
+from dateutil.relativedelta import relativedelta
 
 # Set your YouTube Data API key here
 YOUTUBE_API_KEY = "AIzaSyD7OUR71LzrVXntYUXlSjUxv1ZCkjNYpGM"
@@ -361,7 +16,7 @@ youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_
 
 # Configure Streamlit page
 st.set_page_config(
-    page_title="YouTube Creator Pro Dashboard",
+    page_title="YouTube Pro Analytics",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -370,110 +25,178 @@ st.set_page_config(
 def set_dark_theme():
     st.markdown("""
     <style>
+    :root {
+        --primary-color: #FF4B4B;
+        --secondary-color: #0E1117;
+        --text-color: #FFFFFF;
+        --card-bg: #1A1D24;
+    }
+    
     .main {
-        background-color: #0E1117;
-        color: white;
+        background-color: var(--secondary-color);
+        color: var(--text-color);
     }
+    
+    .sidebar {
+        background-color: var(--secondary-color) !important;
+        border-right: 1px solid #333 !important;
+    }
+    
     .sidebar .sidebar-content {
-        background-color: #0E1117;
-        color: white;
-        border-right: 1px solid #333;
+        background-color: var(--secondary-color) !important;
     }
-    .st-bw {
-        background-color: #0E1117;
+    
+    .st-bw, .st-at, .st-cn {
+        background-color: var(--secondary-color) !important;
     }
-    .st-at {
-        background-color: #262730;
-    }
-    .css-1aumxhk {
-        background-color: #0E1117;
-        background-image: none;
-        color: white;
-    }
+    
     h1, h2, h3, h4, h5, h6 {
-        color: #FF4B4B !important;
+        color: var(--primary-color) !important;
     }
+    
+    .metric-box {
+        background-color: var(--card-bg);
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 15px;
+        border-left: 4px solid var(--primary-color);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .metric-title {
+        color: #AAAAAA;
+        font-size: 14px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .metric-value {
+        color: var(--text-color);
+        font-size: 28px;
+        font-weight: 700;
+        margin-top: 5px;
+    }
+    
+    .metric-subtext {
+        color: #AAAAAA;
+        font-size: 12px;
+        margin-top: 5px;
+    }
+    
+    .stSelectbox, .stSlider, .stDateInput, .stTextInput {
+        background-color: var(--card-bg) !important;
+        border-color: #333 !important;
+    }
+    
+    .st-bb {
+        background-color: var(--card-bg) !important;
+    }
+    
+    .stDataFrame {
+        background-color: var(--card-bg) !important;
+    }
+    
+    .css-1aumxhk {
+        background-color: var(--secondary-color) !important;
+    }
+    
     .css-1v0mbdj {
-        border: 1px solid #333;
-    }
-    .st-bq {
-        color: white;
-    }
-    .st-cn {
-        background-color: #262730;
+        border: 1px solid #333 !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
 set_dark_theme()
 
-# Function to get comprehensive channel analytics
+# Function to get comprehensive channel analytics with error handling
+@st.cache_data(ttl=3600, show_spinner="Fetching channel data...")
 def get_channel_analytics(channel_id):
     try:
         # Get channel statistics
         channel_response = youtube.channels().list(
-            part="snippet,statistics,brandingSettings",
+            part="snippet,statistics,brandingSettings,topicDetails",
             id=channel_id
         ).execute()
         
         if not channel_response.get("items"):
-            st.error("Channel not found. Please check the Channel ID.")
+            st.error("❌ Channel not found. Please check the Channel ID.")
             return None
             
         channel_info = channel_response["items"][0]
         
-        # Get channel videos
-        videos_response = youtube.search().list(
-            channelId=channel_id,
-            type="video",
-            part="id,snippet",
-            maxResults=50,
-            order="date"
-        ).execute()
+        # Get channel videos (limited to 500 for performance)
+        videos = []
+        next_page_token = None
         
-        video_ids = [item["id"]["videoId"] for item in videos_response.get("items", [])]
-        
-        # Get detailed video statistics
-        videos_data = []
-        for video_id in video_ids:
-            video_response = youtube.videos().list(
-                part="statistics,snippet,contentDetails",
-                id=video_id
+        for _ in range(10):  # Max 10 pages (500 videos)
+            videos_response = youtube.search().list(
+                channelId=channel_id,
+                type="video",
+                part="id,snippet",
+                maxResults=50,
+                order="date",
+                pageToken=next_page_token
             ).execute()
             
-            if video_response.get("items"):
-                video = video_response["items"][0]
-                stats = video["statistics"]
-                snippet = video["snippet"]
-                details = video["contentDetails"]
+            video_ids = [item["id"]["videoId"] for item in videos_response.get("items", [])]
+            
+            # Get detailed video statistics in batches
+            for i in range(0, len(video_ids), 50):
+                batch_ids = video_ids[i:i+50]
+                video_response = youtube.videos().list(
+                    part="statistics,snippet,contentDetails",
+                    id=",".join(batch_ids)
+                ).execute()
                 
-                videos_data.append({
-                    "title": snippet.get("title", "N/A"),
-                    "video_id": video_id,
-                    "published_at": snippet.get("publishedAt", "N/A"),
-                    "duration": details.get("duration", "N/A"),
-                    "views": int(stats.get("viewCount", 0)),
-                    "likes": int(stats.get("likeCount", 0)),
-                    "comments": int(stats.get("commentCount", 0)),
-                    "engagement": (int(stats.get("likeCount", 0)) + int(stats.get("commentCount", 0))) / max(1, int(stats.get("viewCount", 1))),
-                    "thumbnail": snippet.get("thumbnails", {}).get("high", {}).get("url", "")
-                })
+                for video in video_response.get("items", []):
+                    stats = video["statistics"]
+                    snippet = video["snippet"]
+                    details = video["contentDetails"]
+                    
+                    videos.append({
+                        "title": snippet.get("title", "N/A"),
+                        "video_id": video["id"],
+                        "published_at": snippet.get("publishedAt", "N/A"),
+                        "duration": details.get("duration", "PT0M"),
+                        "views": int(stats.get("viewCount", 0)),
+                        "likes": int(stats.get("likeCount", 0)),
+                        "comments": int(stats.get("commentCount", 0)),
+                        "thumbnail": snippet.get("thumbnails", {}).get("high", {}).get("url", ""),
+                        "category_id": snippet.get("categoryId", "")
+                    })
+            
+            next_page_token = videos_response.get("nextPageToken")
+            if not next_page_token:
+                break
+        
+        # Calculate engagement metrics
+        for video in videos:
+            video["engagement"] = ((video["likes"] + video["comments"]) / max(1, video["views"])) * 100
         
         # Get channel playlists
-        playlists_response = youtube.playlists().list(
-            part="snippet,contentDetails",
-            channelId=channel_id,
-            maxResults=50
-        ).execute()
+        playlists = []
+        next_page_token = None
         
-        playlists_data = []
-        for playlist in playlists_response.get("items", []):
-            playlists_data.append({
-                "title": playlist["snippet"]["title"],
-                "playlist_id": playlist["id"],
-                "item_count": playlist["contentDetails"]["itemCount"],
-                "thumbnail": playlist["snippet"]["thumbnails"]["high"]["url"]
-            })
+        for _ in range(5):  # Max 5 pages (250 playlists)
+            playlists_response = youtube.playlists().list(
+                part="snippet,contentDetails",
+                channelId=channel_id,
+                maxResults=50,
+                pageToken=next_page_token
+            ).execute()
+            
+            for playlist in playlists_response.get("items", []):
+                playlists.append({
+                    "title": playlist["snippet"]["title"],
+                    "playlist_id": playlist["id"],
+                    "item_count": playlist["contentDetails"]["itemCount"],
+                    "thumbnail": playlist["snippet"]["thumbnails"]["high"]["url"]
+                })
+            
+            next_page_token = playlists_response.get("nextPageToken")
+            if not next_page_token:
+                break
         
         # Format the data
         channel_data = {
@@ -484,7 +207,8 @@ def get_channel_analytics(channel_id):
                 "published_at": channel_info["snippet"]["publishedAt"],
                 "country": channel_info["snippet"].get("country", "N/A"),
                 "thumbnail": channel_info["snippet"]["thumbnails"]["high"]["url"],
-                "banner": channel_info["brandingSettings"].get("image", {}).get("bannerExternalUrl", "N/A")
+                "banner": channel_info["brandingSettings"].get("image", {}).get("bannerExternalUrl", "N/A"),
+                "topics": channel_info.get("topicDetails", {}).get("topicCategories", [])
             },
             "statistics": {
                 "view_count": int(channel_info["statistics"]["viewCount"]),
@@ -492,144 +216,227 @@ def get_channel_analytics(channel_id):
                 "video_count": int(channel_info["statistics"]["videoCount"]),
                 "hidden_subscriber_count": channel_info["statistics"]["hiddenSubscriberCount"]
             },
-            "videos": sorted(videos_data, key=lambda x: x["views"], reverse=True),
-            "playlists": playlists_data
+            "videos": sorted(videos, key=lambda x: x["views"], reverse=True),
+            "playlists": playlists
         }
         
         return channel_data
         
     except Exception as e:
-        st.error(f"Error fetching channel data: {str(e)}")
+        st.error(f"❌ Error fetching channel data: {str(e)}")
         return None
 
-# Function to calculate estimated earnings (simplified model)
-def calculate_earnings(videos_data, currency="USD"):
-    # Simplified RPM (Revenue Per Mille) estimates by category
+# Function to calculate estimated earnings with more sophisticated model
+def calculate_earnings(videos_data, currency="USD", cpm_range="medium"):
+    # RPM (Revenue Per Mille) estimates by category and region
     rpm_rates = {
-        "USD": {"low": 1.5, "medium": 3.0, "high": 5.0},
-        "INR": {"low": 110, "medium": 220, "high": 370},
-        "EUR": {"low": 1.3, "medium": 2.7, "high": 4.5}
+        "USD": {
+            "low": {"US": 1.0, "IN": 0.5, "other": 0.8},
+            "medium": {"US": 3.0, "IN": 1.5, "other": 2.0},
+            "high": {"US": 5.0, "IN": 2.5, "other": 3.5}
+        },
+        "INR": {
+            "low": {"US": 80, "IN": 40, "other": 60},
+            "medium": {"US": 240, "IN": 120, "other": 160},
+            "high": {"US": 400, "IN": 200, "other": 280}
+        },
+        "EUR": {
+            "low": {"US": 0.9, "IN": 0.45, "other": 0.7},
+            "medium": {"US": 2.7, "IN": 1.35, "other": 1.8},
+            "high": {"US": 4.5, "IN": 2.25, "other": 3.15}
+        }
     }
     
-    # Calculate total views
+    # Calculate total views and views by month
     total_views = sum(video["views"] for video in videos_data)
     
-    # Calculate earnings based on RPM (using medium as default)
-    rpm = rpm_rates[currency]["medium"]
-    estimated_earnings = (total_views / 1000) * rpm
-    
-    # Monthly breakdown
     monthly_data = {}
     for video in videos_data:
-        month = datetime.strptime(video["published_at"], "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m")
-        if month not in monthly_data:
-            monthly_data[month] = 0
-        monthly_data[month] += video["views"]
+        try:
+            month = datetime.strptime(video["published_at"], "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m")
+            if month not in monthly_data:
+                monthly_data[month] = {
+                    "views": 0,
+                    "videos": 0,
+                    "estimated_earnings": 0
+                }
+            monthly_data[month]["views"] += video["views"]
+            monthly_data[month]["videos"] += 1
+        except:
+            continue
     
-    monthly_earnings = {month: (views/1000)*rpm for month, views in monthly_data.items()}
+    # Calculate earnings by month with different RPM for different regions
+    for month in monthly_data:
+        # Simplified - assuming 60% US views, 10% India, 30% other for premium channels
+        us_views = monthly_data[month]["views"] * 0.6
+        in_views = monthly_data[month]["views"] * 0.1
+        other_views = monthly_data[month]["views"] * 0.3
+        
+        us_earnings = (us_views / 1000) * rpm_rates[currency][cpm_range]["US"]
+        in_earnings = (in_views / 1000) * rpm_rates[currency][cpm_range]["IN"]
+        other_earnings = (other_views / 1000) * rpm_rates[currency][cpm_range]["other"]
+        
+        monthly_data[month]["estimated_earnings"] = us_earnings + in_earnings + other_earnings
+    
+    total_earnings = sum(month["estimated_earnings"] for month in monthly_data.values())
     
     return {
-        "total_earnings": estimated_earnings,
-        "monthly_earnings": monthly_earnings,
+        "total_earnings": total_earnings,
+        "monthly_earnings": monthly_data,
         "currency": currency,
-        "rpm": rpm,
-        "total_views": total_views
+        "cpm_range": cpm_range,
+        "total_views": total_views,
+        "estimated_rpm": total_earnings / (total_views / 1000) if total_views > 0 else 0
     }
 
 # Function to format numbers
 def format_number(num):
-    if num >= 1000000:
-        return f"{num/1000000:.1f}M"
+    if num >= 1000000000:
+        return f"${num/1000000000:.1f}B" if num < 0 else f"{num/1000000000:.1f}B"
+    elif num >= 1000000:
+        return f"${num/1000000:.1f}M" if num < 0 else f"{num/1000000:.1f}M"
     elif num >= 1000:
-        return f"{num/1000:.1f}K"
-    return str(num)
+        return f"${num/1000:.1f}K" if num < 0 else f"{num/1000:.1f}K"
+    return f"${num}" if num < 0 else str(num)
+
+# Function to parse ISO 8601 duration
+def parse_duration(duration):
+    try:
+        if duration.startswith('PT'):
+            duration = duration[2:]
+            hours = 0
+            minutes = 0
+            seconds = 0
+            
+            if 'H' in duration:
+                hours_part = duration.split('H')[0]
+                hours = int(hours_part)
+                duration = duration.split('H')[1]
+            
+            if 'M' in duration:
+                minutes_part = duration.split('M')[0]
+                minutes = int(minutes_part)
+                duration = duration.split('M')[1]
+            
+            if 'S' in duration:
+                seconds_part = duration.split('S')[0]
+                seconds = int(seconds_part)
+            
+            return hours * 3600 + minutes * 60 + seconds
+        return 0
+    except:
+        return 0
+
+# Function to format seconds to HH:MM:SS
+def format_duration(seconds):
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    seconds = seconds % 60
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}" if hours > 0 else f"{minutes:02d}:{seconds:02d}"
 
 # Main dashboard function
 def youtube_dashboard():
-    st.title("YouTube Creator Pro Dashboard")
+    st.title("YouTube Pro Analytics Dashboard")
     st.markdown("""
     <style>
-    .metric-box {
-        background-color: #262730;
-        border-radius: 10px;
-        padding: 15px;
-        margin: 10px 0;
-        border-left: 5px solid #FF4B4B;
-    }
-    .metric-title {
-        color: #FF4B4B;
-        font-size: 14px;
-        font-weight: bold;
-    }
-    .metric-value {
-        color: white;
-        font-size: 24px;
-        font-weight: bold;
+    .section-divider {
+        border-top: 2px solid #FF4B4B;
+        margin: 20px 0;
     }
     </style>
     """, unsafe_allow_html=True)
     
     # Sidebar configuration
-    st.sidebar.title("Dashboard Configuration")
-    channel_id = st.sidebar.text_input("Enter YouTube Channel ID", key="channel_id")
+    st.sidebar.title("Configuration")
+    st.sidebar.markdown("---")
+    
+    channel_id = st.sidebar.text_input("Enter YouTube Channel ID", key="channel_id", 
+                                     placeholder="UCX6OQ3DkcsbYNE6H8uQQuVA")
+    
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Earnings Settings")
     
     currency_options = {"USD": "US Dollar", "INR": "Indian Rupee", "EUR": "Euro"}
-    selected_currency = st.sidebar.selectbox("Select Currency for Earnings", options=list(currency_options.keys()), 
+    selected_currency = st.sidebar.selectbox("Currency", options=list(currency_options.keys()), 
                                            format_func=lambda x: currency_options[x])
     
-    time_range = st.sidebar.selectbox("Time Range", ["Last 30 days", "Last 90 days", "Last 12 months", "All time"])
+    cpm_options = {"low": "Low CPM", "medium": "Medium CPM", "high": "High CPM"}
+    selected_cpm = st.sidebar.selectbox("CPM Range", options=list(cpm_options.keys()), 
+                                      format_func=lambda x: cpm_options[x])
     
-    if st.sidebar.button("Analyze Channel"):
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Time Range")
+    
+    time_range = st.sidebar.selectbox("Data Range", 
+                                     ["Last 30 days", "Last 90 days", "Last 6 months", 
+                                      "Last year", "Last 2 years", "All time"])
+    
+    st.sidebar.markdown("---")
+    
+    if st.sidebar.button("Analyze Channel", key="analyze_btn", 
+                        help="Fetch and analyze channel data"):
         if not channel_id:
             st.error("Please enter a valid YouTube Channel ID")
-            return
+            st.stop()
             
-        with st.spinner("Fetching channel data..."):
+        with st.spinner("Fetching and analyzing channel data..."):
             channel_data = get_channel_analytics(channel_id)
             
         if not channel_data:
-            return
+            st.stop()
             
+        # Calculate time range filter
+        now = datetime.now()
+        if time_range == "Last 30 days":
+            cutoff_date = now - timedelta(days=30)
+        elif time_range == "Last 90 days":
+            cutoff_date = now - timedelta(days=90)
+        elif time_range == "Last 6 months":
+            cutoff_date = now - relativedelta(months=6)
+        elif time_range == "Last year":
+            cutoff_date = now - relativedelta(years=1)
+        elif time_range == "Last 2 years":
+            cutoff_date = now - relativedelta(years=2)
+        else:  # All time
+            cutoff_date = datetime.min
+            
+        # Filter videos by time range
+        filtered_videos = []
+        for video in channel_data["videos"]:
+            try:
+                pub_date = datetime.strptime(video["published_at"], "%Y-%m-%dT%H:%M:%SZ")
+                if pub_date >= cutoff_date:
+                    filtered_videos.append(video)
+            except:
+                continue
+        
         # Calculate earnings
-        earnings_data = calculate_earnings(channel_data["videos"], selected_currency)
+        earnings_data = calculate_earnings(filtered_videos, selected_currency, selected_cpm)
+        
+        # Create DataFrame for filtered videos
+        video_df = pd.DataFrame(filtered_videos)
+        video_df["published_at"] = pd.to_datetime(video_df["published_at"])
+        video_df["duration_sec"] = video_df["duration"].apply(parse_duration)
+        video_df["duration_formatted"] = video_df["duration_sec"].apply(format_duration)
+        
+        # Convert monthly earnings to DataFrame
+        monthly_earnings = []
+        for month, data in earnings_data["monthly_earnings"].items():
+            monthly_earnings.append({
+                "month": month,
+                "earnings": data["estimated_earnings"],
+                "views": data["views"],
+                "videos": data["videos"],
+                "earnings_per_video": data["estimated_earnings"] / max(1, data["videos"])
+            })
+        
+        earnings_df = pd.DataFrame(monthly_earnings)
+        earnings_df["month"] = pd.to_datetime(earnings_df["month"])
         
         # Main dashboard layout
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.markdown(f"""
-            <div class="metric-box">
-                <div class="metric-title">Subscribers</div>
-                <div class="metric-value">{format_number(channel_data['statistics']['subscriber_count'])}</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        with col2:
-            st.markdown(f"""
-            <div class="metric-box">
-                <div class="metric-title">Total Views</div>
-                <div class="metric-value">{format_number(channel_data['statistics']['view_count'])}</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        with col3:
-            st.markdown(f"""
-            <div class="metric-box">
-                <div class="metric-title">Total Videos</div>
-                <div class="metric-value">{format_number(channel_data['statistics']['video_count'])}</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        with col4:
-            st.markdown(f"""
-            <div class="metric-box">
-                <div class="metric-title">Estimated Earnings</div>
-                <div class="metric-value">{selected_currency} {earnings_data['total_earnings']:,.0f}</div>
-            </div>
-            """, unsafe_allow_html=True)
+        st.markdown("---")
         
         # Channel header
-        st.markdown("---")
         col_header1, col_header2 = st.columns([1, 3])
         
         with col_header1:
@@ -640,127 +447,235 @@ def youtube_dashboard():
             st.markdown(f"**Channel URL:** youtube.com/channel/{channel_id}")
             st.markdown(f"**Country:** {channel_data['basic_info']['country']}")
             st.markdown(f"**Created:** {datetime.strptime(channel_data['basic_info']['published_at'], '%Y-%m-%dT%H:%M:%SZ').strftime('%B %d, %Y')}")
+            if channel_data["basic_info"]["topics"]:
+                st.markdown("**Topics:** " + ", ".join([topic.split('/')[-1].replace('_', ' ') for topic in channel_data["basic_info"]["topics"][:3]]))
         
-        # First row of charts
         st.markdown("---")
-        st.markdown("### Performance Overview")
+        
+        # Key Metrics
+        st.subheader("Channel Performance Summary")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.markdown(f"""
+            <div class="metric-box">
+                <div class="metric-title">Subscribers</div>
+                <div class="metric-value">{format_number(channel_data['statistics']['subscriber_count'])}</div>
+                <div class="metric-subtext">Hidden: {'Yes' if channel_data['statistics']['hidden_subscriber_count'] else 'No'}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        with col2:
+            st.markdown(f"""
+            <div class="metric-box">
+                <div class="metric-title">Total Views</div>
+                <div class="metric-value">{format_number(channel_data['statistics']['view_count'])}</div>
+                <div class="metric-subtext">{len(filtered_videos)} videos in selected period</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        with col3:
+            st.markdown(f"""
+            <div class="metric-box">
+                <div class="metric-title">Total Videos</div>
+                <div class="metric-value">{format_number(channel_data['statistics']['video_count'])}</div>
+                <div class="metric-subtext">{len(filtered_videos)} in selected period</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        with col4:
+            st.markdown(f"""
+            <div class="metric-box">
+                <div class="metric-title">Estimated Earnings</div>
+                <div class="metric-value">{selected_currency} {format_number(earnings_data['total_earnings'])}</div>
+                <div class="metric-subtext">RPM: {earnings_data['estimated_rpm']:.2f} {selected_currency}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # Performance Charts
+        st.subheader("Performance Analytics")
+        
+        # Row 1: Views and Earnings
         col_chart1, col_chart2 = st.columns(2)
         
         with col_chart1:
             # Views over time
-            df_views = pd.DataFrame({
-                "Date": [datetime.strptime(video["published_at"], "%Y-%m-%dT%H:%M:%SZ") for video in channel_data["videos"]],
-                "Views": [video["views"] for video in channel_data["videos"]]
-            })
-            
-            fig_views = px.line(df_views, x="Date", y="Views", 
-                              title="Views Over Time",
-                              color_discrete_sequence=["#FF4B4B"])
-            fig_views.update_layout(plot_bgcolor="#0E1117", paper_bgcolor="#0E1117", 
-                                  font={"color": "white"}, hovermode="x unified")
+            fig_views = px.line(
+                video_df, 
+                x="published_at", 
+                y="views", 
+                title="Video Views Over Time",
+                color_discrete_sequence=["#FF4B4B"],
+                labels={"published_at": "Publish Date", "views": "Views"}
+            )
+            fig_views.update_layout(
+                plot_bgcolor="#1A1D24",
+                paper_bgcolor="#0E1117",
+                font={"color": "white"},
+                hovermode="x unified",
+                height=400
+            )
             st.plotly_chart(fig_views, use_container_width=True)
             
         with col_chart2:
             # Monthly earnings
-            df_earnings = pd.DataFrame({
-                "Month": list(earnings_data["monthly_earnings"].keys()),
-                "Earnings": list(earnings_data["monthly_earnings"].values())
-            })
-            
-            fig_earnings = px.bar(df_earnings, x="Month", y="Earnings",
-                                 title=f"Monthly Earnings ({selected_currency})",
-                                 color_discrete_sequence=["#FF4B4B"])
-            fig_earnings.update_layout(plot_bgcolor="#0E1117", paper_bgcolor="#0E1117", 
-                                     font={"color": "white"}, hovermode="x unified")
-            st.plotly_chart(fig_earnings, use_container_width=True)
+            if not earnings_df.empty:
+                fig_earnings = px.bar(
+                    earnings_df, 
+                    x="month", 
+                    y="earnings",
+                    title=f"Monthly Earnings ({selected_currency})",
+                    color_discrete_sequence=["#FF4B4B"],
+                    labels={"month": "Month", "earnings": "Earnings"}
+                )
+                fig_earnings.update_layout(
+                    plot_bgcolor="#1A1D24",
+                    paper_bgcolor="#0E1117",
+                    font={"color": "white"},
+                    hovermode="x unified",
+                    height=400
+                )
+                st.plotly_chart(fig_earnings, use_container_width=True)
         
-        # Second row of charts
+        # Row 2: Top Videos and Engagement
         col_chart3, col_chart4 = st.columns(2)
         
         with col_chart3:
             # Top performing videos
-            top_videos = sorted(channel_data["videos"], key=lambda x: x["views"], reverse=True)[:5]
-            df_top_videos = pd.DataFrame({
-                "Video": [video["title"] for video in top_videos],
-                "Views": [video["views"] for video in top_videos]
-            })
-            
-            fig_top_videos = px.bar(df_top_videos, x="Views", y="Video", orientation='h',
-                                   title="Top Performing Videos by Views",
-                                   color_discrete_sequence=["#FF4B4B"])
-            fig_top_videos.update_layout(plot_bgcolor="#0E1117", paper_bgcolor="#0E1117", 
-                                      font={"color": "white"}, hovermode="y unified")
+            top_videos = video_df.nlargest(10, "views")
+            fig_top_videos = px.bar(
+                top_videos, 
+                x="views", 
+                y="title",
+                orientation='h',
+                title="Top Videos by Views",
+                color_discrete_sequence=["#FF4B4B"],
+                labels={"title": "Video Title", "views": "Views"},
+                hover_data=["published_at", "likes", "comments", "duration_formatted"]
+            )
+            fig_top_videos.update_layout(
+                plot_bgcolor="#1A1D24",
+                paper_bgcolor="#0E1117",
+                font={"color": "white"},
+                hovermode="y unified",
+                height=400,
+                yaxis={'categoryorder':'total ascending'}
+            )
             st.plotly_chart(fig_top_videos, use_container_width=True)
             
         with col_chart4:
             # Engagement rate scatter plot
-            df_engagement = pd.DataFrame({
-                "Video": [video["title"] for video in channel_data["videos"]],
-                "Views": [video["views"] for video in channel_data["videos"]],
-                "Engagement": [video["engagement"]*100 for video in channel_data["videos"]],
-                "Likes": [video["likes"] for video in channel_data["videos"]]
-            })
-            
-            fig_engagement = px.scatter(df_engagement, x="Views", y="Engagement", size="Likes",
-                                      title="Engagement Rate vs Views",
-                                      color_discrete_sequence=["#FF4B4B"],
-                                      hover_name="Video")
-            fig_engagement.update_layout(plot_bgcolor="#0E1117", paper_bgcolor="#0E1117", 
-                                      font={"color": "white"}, hovermode="closest")
+            fig_engagement = px.scatter(
+                video_df, 
+                x="views", 
+                y="engagement",
+                size="likes",
+                color="duration_sec",
+                title="Engagement Rate vs Views",
+                color_continuous_scale="reds",
+                labels={"views": "Views", "engagement": "Engagement Rate (%)", "duration_sec": "Duration (sec)"},
+                hover_name="title",
+                hover_data=["published_at", "likes", "comments"]
+            )
+            fig_engagement.update_layout(
+                plot_bgcolor="#1A1D24",
+                paper_bgcolor="#0E1117",
+                font={"color": "white"},
+                hovermode="closest",
+                height=400
+            )
             st.plotly_chart(fig_engagement, use_container_width=True)
         
-        # Video details section
         st.markdown("---")
-        st.markdown("### Video Performance Details")
         
-        # Create a DataFrame for the video data
-        video_df = pd.DataFrame(channel_data["videos"])
-        video_df["published_at"] = pd.to_datetime(video_df["published_at"])
-        video_df["engagement_rate"] = video_df["engagement"] * 100
+        # Video Analytics Section
+        st.subheader("Video Performance Details")
         
-        # Add filters
-        col_filter1, col_filter2, col_filter3 = st.columns(3)
+        # Filters
+        col_filter1, col_filter2, col_filter3, col_filter4 = st.columns(4)
         
         with col_filter1:
-            min_views = st.slider("Minimum Views", 
-                                 min_value=0, 
-                                 max_value=int(video_df["views"].max()), 
-                                 value=0)
+            min_views = st.slider(
+                "Minimum Views", 
+                min_value=0, 
+                max_value=int(video_df["views"].max()), 
+                value=0,
+                step=1000
+            )
             
         with col_filter2:
-            min_likes = st.slider("Minimum Likes", 
-                                 min_value=0, 
-                                 max_value=int(video_df["likes"].max()), 
-                                 value=0)
+            min_likes = st.slider(
+                "Minimum Likes", 
+                min_value=0, 
+                max_value=int(video_df["likes"].max()), 
+                value=0,
+                step=1000
+            )
             
         with col_filter3:
-            date_range = st.date_input("Date Range", 
-                                     [video_df["published_at"].min(), 
-                                     video_df["published_at"].max()])
+            min_engagement = st.slider(
+                "Minimum Engagement (%)", 
+                min_value=0.0, 
+                max_value=float(video_df["engagement"].max()), 
+                value=0.0,
+                step=0.5
+            )
+            
+        with col_filter4:
+            duration_range = st.slider(
+                "Duration Range (minutes)", 
+                min_value=0, 
+                max_value=int(video_df["duration_sec"].max() // 60) + 1, 
+                value=(0, int(video_df["duration_sec"].max() // 60) + 1)
+            )
         
         # Apply filters
         filtered_df = video_df[
             (video_df["views"] >= min_views) & 
             (video_df["likes"] >= min_likes) & 
-            (video_df["published_at"].between(pd.to_datetime(date_range[0]), pd.to_datetime(date_range[1])))
+            (video_df["engagement"] >= min_engagement) &
+            (video_df["duration_sec"] >= duration_range[0] * 60) &
+            (video_df["duration_sec"] <= duration_range[1] * 60)
         ]
         
+        # Display metrics about filtered videos
+        col_metric1, col_metric2, col_metric3 = st.columns(3)
+        
+        with col_metric1:
+            avg_views = filtered_df["views"].mean()
+            st.metric("Average Views", f"{avg_views:,.0f}")
+            
+        with col_metric2:
+            avg_engagement = filtered_df["engagement"].mean()
+            st.metric("Average Engagement", f"{avg_engagement:.2f}%")
+            
+        with col_metric3:
+            avg_duration = filtered_df["duration_sec"].mean() / 60
+            st.metric("Average Duration", f"{avg_duration:.1f} mins")
+        
         # Display filtered results
-        st.dataframe(filtered_df[["title", "published_at", "views", "likes", "comments", "engagement_rate"]].rename(columns={
-            "title": "Title",
-            "published_at": "Published Date",
-            "views": "Views",
-            "likes": "Likes",
-            "comments": "Comments",
-            "engagement_rate": "Engagement Rate (%)"
-        }), height=400)
+        st.dataframe(
+            filtered_df[["title", "published_at", "views", "likes", "comments", "engagement", "duration_formatted"]].rename(columns={
+                "title": "Title",
+                "published_at": "Published Date",
+                "views": "Views",
+                "likes": "Likes",
+                "comments": "Comments",
+                "engagement": "Engagement (%)",
+                "duration_formatted": "Duration"
+            }).sort_values("Views", ascending=False),
+            height=500,
+            use_container_width=True
+        )
         
         # Playlists section
         if channel_data["playlists"]:
             st.markdown("---")
-            st.markdown("### Playlists Performance")
+            st.subheader("Playlists Performance")
             
-            for playlist in channel_data["playlists"]:
+            for playlist in channel_data["playlists"][:5]:  # Show max 5 playlists
                 col_pl1, col_pl2 = st.columns([1, 4])
                 
                 with col_pl1:
@@ -770,6 +685,8 @@ def youtube_dashboard():
                     st.markdown(f"**{playlist['title']}**")
                     st.markdown(f"**Videos:** {playlist['item_count']}")
                     st.markdown(f"**Playlist ID:** {playlist['playlist_id']}")
+                
+                st.markdown("---")
 
 # Run the dashboard
 if __name__ == "__main__":
