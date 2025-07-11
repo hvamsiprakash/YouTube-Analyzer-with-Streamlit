@@ -113,6 +113,16 @@ def set_dark_theme():
 
 set_dark_theme()
 
+# Initialize session state
+if 'channel_data' not in st.session_state:
+    st.session_state.channel_data = None
+if 'video_df' not in st.session_state:
+    st.session_state.video_df = None
+if 'filtered_videos' not in st.session_state:
+    st.session_state.filtered_videos = None
+if 'time_range' not in st.session_state:
+    st.session_state.time_range = "Last 90 days"
+
 # Function to get comprehensive channel analytics with error handling
 @st.cache_data(ttl=3600, show_spinner="Fetching channel data...")
 def get_channel_analytics(channel_id):
@@ -274,6 +284,28 @@ def clean_tags(tags_list):
     # Remove empty strings and duplicates
     return list(set([tag for tag in cleaned if tag.strip()]))
 
+# Function to filter videos by time range
+def filter_videos_by_time(video_df, time_range):
+    now = datetime.now()
+    if time_range == "Last 7 days":
+        cutoff_date = now - timedelta(days=7)
+    elif time_range == "Last 30 days":
+        cutoff_date = now - timedelta(days=30)
+    elif time_range == "Last 90 days":
+        cutoff_date = now - timedelta(days=90)
+    elif time_range == "Last 6 months":
+        cutoff_date = now - relativedelta(months=6)
+    elif time_range == "Last year":
+        cutoff_date = now - relativedelta(years=1)
+    else:  # All time
+        cutoff_date = datetime.min
+    
+    # Ensure datetime comparison works properly
+    if cutoff_date == datetime.min:
+        return video_df.copy()
+    
+    return video_df[video_df["published_at"] >= cutoff_date]
+
 # Main dashboard function
 def youtube_dashboard():
     st.title("YouTube Pro Analytics Dashboard")
@@ -287,505 +319,244 @@ def youtube_dashboard():
         st.write("")  # For alignment
         analyze_btn = st.button("Analyze Channel", type="primary")
     
-    if not channel_id and not analyze_btn:
-        st.stop()
-    
-    if analyze_btn and not channel_id:
-        st.error("Please enter a valid YouTube Channel ID")
-        st.stop()
-    
-    if analyze_btn and channel_id:
-        with st.spinner("Fetching and analyzing channel data..."):
-            channel_data = get_channel_analytics(channel_id)
-            
-        if not channel_data:
+    if analyze_btn or st.session_state.channel_data:
+        if analyze_btn and not channel_id:
+            st.error("Please enter a valid YouTube Channel ID")
             st.stop()
+        
+        if analyze_btn:
+            with st.spinner("Fetching and analyzing channel data..."):
+                st.session_state.channel_data = get_channel_analytics(channel_id)
+                if st.session_state.channel_data:
+                    # Prepare video data
+                    video_df = pd.DataFrame(st.session_state.channel_data["videos"])
+                    video_df["published_at"] = pd.to_datetime(video_df["published_at"], errors="coerce")
+                    video_df = video_df.dropna(subset=["published_at"])
+                    video_df["duration_sec"] = video_df["duration"].apply(parse_duration)
+                    video_df["duration_formatted"] = video_df["duration_sec"].apply(format_duration)
+                    video_df["engagement"] = ((video_df["likes"] + video_df["comments"]) / video_df["views"].replace(0, 1)) * 100
+                    st.session_state.video_df = video_df
+                    st.session_state.filtered_videos = filter_videos_by_time(video_df, st.session_state.time_range)
             
-        # Prepare video data
-        video_df = pd.DataFrame(channel_data["videos"])
-        video_df["published_at"] = pd.to_datetime(video_df["published_at"], errors="coerce")
-        video_df = video_df.dropna(subset=["published_at"])
-        video_df["duration_sec"] = video_df["duration"].apply(parse_duration)
-        video_df["duration_formatted"] = video_df["duration_sec"].apply(format_duration)
-        video_df["engagement"] = ((video_df["likes"] + video_df["comments"]) / video_df["views"].replace(0, 1)) * 100
-        
-        # Calculate channel age
-        channel_age = calculate_channel_age(channel_data["basic_info"]["published_at"])
-        
-        # Channel header
-        st.markdown("---")
-        col_header1, col_header2 = st.columns([1, 3])
-        
-        with col_header1:
-            st.image(channel_data["basic_info"]["thumbnail"], width=150)
+        if st.session_state.channel_data and st.session_state.video_df is not None:
+            # Calculate channel age
+            channel_age = calculate_channel_age(st.session_state.channel_data["basic_info"]["published_at"])
             
-        with col_header2:
-            st.markdown(f"### {channel_data['basic_info']['title']}")
-            st.markdown(f"**Channel URL:** youtube.com/channel/{channel_id}")
-            st.markdown(f"**Country:** {channel_data['basic_info']['country']}")
-            st.markdown(f"**Channel Age:** {channel_age}")
-            if channel_data["basic_info"]["topics"]:
-                st.markdown("**Topics:** " + ", ".join([topic.split('/')[-1].replace('_', ' ') for topic in channel_data["basic_info"]["topics"][:3]]))
-        
-        st.markdown("---")
-        
-        # Key Metrics
-        st.subheader("Channel Performance Summary")
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.markdown(f"""
-            <div class="metric-box">
-                <div class="metric-title">Subscribers</div>
-                <div class="metric-value">{format_number(channel_data['statistics']['subscriber_count'])}</div>
-                <div class="metric-subtext">Hidden: {'Yes' if channel_data['statistics']['hidden_subscriber_count'] else 'No'}</div>
-            </div>
-            """, unsafe_allow_html=True)
+            # Channel header
+            st.markdown("---")
+            col_header1, col_header2 = st.columns([1, 3])
             
-        with col2:
-            st.markdown(f"""
-            <div class="metric-box">
-                <div class="metric-title">Total Views</div>
-                <div class="metric-value">{format_number(channel_data['statistics']['view_count'])}</div>
-                <div class="metric-subtext">{len(video_df)} videos analyzed</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        with col3:
-            st.markdown(f"""
-            <div class="metric-box">
-                <div class="metric-title">Total Videos</div>
-                <div class="metric-value">{format_number(channel_data['statistics']['video_count'])}</div>
-                <div class="metric-subtext">{len(video_df)} in current analysis</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        with col4:
-            avg_engagement = video_df["engagement"].mean()
-            st.markdown(f"""
-            <div class="metric-box">
-                <div class="metric-title">Avg Engagement</div>
-                <div class="metric-value">{avg_engagement:.1f}%</div>
-                <div class="metric-subtext">(Likes + Comments) / Views</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.markdown("---")
-        
-        # Performance Charts Section
-        st.subheader("Performance Analytics")
-        
-        # Time range filter
-        with st.expander("📅 Time Range Filter", expanded=False):
-            col_time1, col_time2 = st.columns(2)
-            with col_time1:
-                time_range = st.selectbox(
-                    "Select Time Range",
-                    ["Last 7 days", "Last 30 days", "Last 90 days", "Last 6 months", "Last year", "All time"],
-                    index=2
-                )
-            
-            now = datetime.now()
-            if time_range == "Last 7 days":
-                cutoff_date = now - timedelta(days=7)
-            elif time_range == "Last 30 days":
-                cutoff_date = now - timedelta(days=30)
-            elif time_range == "Last 90 days":
-                cutoff_date = now - timedelta(days=90)
-            elif time_range == "Last 6 months":
-                cutoff_date = now - relativedelta(months=6)
-            elif time_range == "Last year":
-                cutoff_date = now - relativedelta(years=1)
-            else:  # All time
-                cutoff_date = datetime.min
+            with col_header1:
+                st.image(st.session_state.channel_data["basic_info"]["thumbnail"], width=150)
                 
-            filtered_videos = video_df[video_df["published_at"] >= cutoff_date]
-        
-        # Row 1: Views Over Time and Top Videos
-        col_chart1, col_chart2 = st.columns(2)
-        
-        with col_chart1:
-            st.markdown("#### 📈 Views Over Time")
+            with col_header2:
+                st.markdown(f"### {st.session_state.channel_data['basic_info']['title']}")
+                st.markdown(f"**Channel URL:** youtube.com/channel/{channel_id}")
+                st.markdown(f"**Country:** {st.session_state.channel_data['basic_info']['country']}")
+                st.markdown(f"**Channel Age:** {channel_age}")
+                if st.session_state.channel_data["basic_info"]["topics"]:
+                    st.markdown("**Topics:** " + ", ".join([topic.split('/')[-1].replace('_', ' ') for topic in st.session_state.channel_data["basic_info"]["topics"][:3]]))
             
-            # Group by week/month based on time range
-            if len(filtered_videos) > 30:
-                freq = "W"  # Weekly for larger datasets
-                resample_freq = "Weekly"
-            else:
-                freq = "D"  # Daily for smaller datasets
-                resample_freq = "Daily"
+            st.markdown("---")
+            
+            # Key Metrics
+            st.subheader("Channel Performance Summary")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.markdown(f"""
+                <div class="metric-box">
+                    <div class="metric-title">Subscribers</div>
+                    <div class="metric-value">{format_number(st.session_state.channel_data['statistics']['subscriber_count'])}</div>
+                    <div class="metric-subtext">Hidden: {'Yes' if st.session_state.channel_data['statistics']['hidden_subscriber_count'] else 'No'}</div>
+                </div>
+                """, unsafe_allow_html=True)
                 
-            views_over_time = filtered_videos.set_index("published_at")["views"].resample(freq).sum().reset_index()
-            
-            fig_views = px.line(
-                views_over_time, 
-                x="published_at", 
-                y="views", 
-                labels={"published_at": "Date", "views": "Views"},
-                color_discrete_sequence=["#FF4B4B"]
-            )
-            fig_views.update_layout(
-                plot_bgcolor="#1A1D24",
-                paper_bgcolor="#0E1117",
-                font={"color": "white"},
-                hovermode="x unified",
-                height=400,
-                margin=dict(l=20, r=20, t=30, b=20)
-            )
-            st.plotly_chart(fig_views, use_container_width=True)
-            
-        with col_chart2:
-            st.markdown("#### 🏆 Top Performing Videos")
-            
-            # Filters for top videos
-            col_top1, col_top2 = st.columns(2)
-            with col_top1:
-                top_n = st.slider("Number of videos", 5, 20, 10, key="top_n_slider")
-            with col_top2:
-                sort_by = st.selectbox("Sort by", ["Views", "Likes", "Engagement"], key="top_sort_select")
-            
-            top_videos = filtered_videos.nlargest(top_n, sort_by.lower())
-            
-            fig_top_videos = px.bar(
-                top_videos, 
-                x=sort_by.lower(), 
-                y="title",
-                orientation='h',
-                labels={"title": "Video Title", sort_by.lower(): sort_by},
-                color_discrete_sequence=["#FF4B4B"],
-                hover_data=["published_at", "duration_formatted", "views", "likes", "comments"]
-            )
-            fig_top_videos.update_layout(
-                plot_bgcolor="#1A1D24",
-                paper_bgcolor="#0E1117",
-                font={"color": "white"},
-                hovermode="y unified",
-                height=400,
-                margin=dict(l=20, r=20, t=30, b=20),
-                yaxis={'categoryorder':'total ascending'}
-            )
-            st.plotly_chart(fig_top_videos, use_container_width=True)
-        
-        # Row 2: Engagement Analysis and Upload Frequency
-        col_chart3, col_chart4 = st.columns(2)
-        
-        with col_chart3:
-            st.markdown("#### 💬 Engagement Analysis")
-            
-            # Engagement filters
-            col_eng1, col_eng2 = st.columns(2)
-            with col_eng1:
-                min_views = st.slider("Min views", 0, int(filtered_videos["views"].max()), 1000, key="eng_view_slider")
-            with col_eng2:
-                duration_filter = st.selectbox("Duration", ["All", "Short (<1 min)", "Medium (1-5 min)", "Long (>5 min)"], key="eng_dur_select")
-            
-            # Apply filters
-            eng_df = filtered_videos[filtered_videos["views"] >= min_views]
-            if duration_filter == "Short (<1 min)":
-                eng_df = eng_df[eng_df["duration_sec"] < 60]
-            elif duration_filter == "Medium (1-5 min)":
-                eng_df = eng_df[(eng_df["duration_sec"] >= 60) & (eng_df["duration_sec"] < 300)]
-            elif duration_filter == "Long (>5 min)":
-                eng_df = eng_df[eng_df["duration_sec"] >= 300]
-            
-            fig_engagement = px.scatter(
-                eng_df, 
-                x="views", 
-                y="engagement",
-                size="likes",
-                color="duration_sec",
-                labels={"views": "Views", "engagement": "Engagement Rate (%)", "duration_sec": "Duration (sec)"},
-                color_continuous_scale="reds",
-                hover_name="title",
-                hover_data=["published_at", "duration_formatted"]
-            )
-            fig_engagement.update_layout(
-                plot_bgcolor="#1A1D24",
-                paper_bgcolor="#0E1117",
-                font={"color": "white"},
-                hovermode="closest",
-                height=400,
-                margin=dict(l=20, r=20, t=30, b=20)
-            )
-            st.plotly_chart(fig_engagement, use_container_width=True)
-            
-        with col_chart4:
-            st.markdown("#### 📅 Upload Frequency")
-            
-            # Upload frequency analysis
-            uploads_by_day = filtered_videos.copy()
-            uploads_by_day["day_of_week"] = uploads_by_day["published_at"].dt.day_name()
-            uploads_by_day["hour"] = uploads_by_day["published_at"].dt.hour
-            
-            # Day of week analysis
-            day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-            uploads_day = uploads_by_day["day_of_week"].value_counts().reindex(day_order).reset_index()
-            uploads_day.columns = ["day", "count"]
-            
-            fig_upload_day = px.bar(
-                uploads_day,
-                x="day",
-                y="count",
-                labels={"day": "Day of Week", "count": "Uploads"},
-                color_discrete_sequence=["#FF4B4B"]
-            )
-            fig_upload_day.update_layout(
-                plot_bgcolor="#1A1D24",
-                paper_bgcolor="#0E1117",
-                font={"color": "white"},
-                height=400,
-                margin=dict(l=20, r=20, t=30, b=20)
-            )
-            st.plotly_chart(fig_upload_day, use_container_width=True)
-
-
-        # Row 3: Video Duration Distribution and Tag Analysis
-        col_chart5, col_chart6 = st.columns(2)
-        
-        with col_chart5:
-            st.markdown("#### ⏱️ Video Duration Distribution")
-            
-            # Duration buckets
-            duration_bins = [0, 60, 300, 600, 1800, 3600, float('inf')]
-            duration_labels = ["<1 min", "1-5 min", "5-10 min", "10-30 min", "30-60 min", ">60 min"]
-            
-            duration_df = filtered_videos.copy()
-            duration_df["duration_bin"] = pd.cut(
-                duration_df["duration_sec"],
-                bins=duration_bins,
-                labels=duration_labels,
-                right=False
-            )
-            
-            duration_counts = duration_df["duration_bin"].value_counts().sort_index()
-            
-            fig_duration = px.bar(
-                duration_counts,
-                x=duration_counts.index,
-                y=duration_counts.values,
-                labels={"x": "Duration", "y": "Number of Videos"},
-                color_discrete_sequence=["#FF4B4B"]
-            )
-            fig_duration.update_layout(
-                plot_bgcolor="#1A1D24",
-                paper_bgcolor="#0E1117",
-                font={"color": "white"},
-                height=400,
-                margin=dict(l=20, r=20, t=30, b=20)
-            )
-            st.plotly_chart(fig_duration, use_container_width=True)
-            
-        with col_chart6:
-            st.markdown("#### 🏷️ Tag Analysis")
-            
-            # Process all tags
-            all_tags = []
-            for tags in filtered_videos["tags"]:
-                if isinstance(tags, list):
-                    all_tags.extend(clean_tags(tags))
-            
-            if not all_tags:
-                st.info("No tags found in the analyzed videos")
-            else:
-                # Get top tags
-                tag_counts = pd.Series(all_tags).value_counts().head(20)
+            with col2:
+                st.markdown(f"""
+                <div class="metric-box">
+                    <div class="metric-title">Total Views</div>
+                    <div class="metric-value">{format_number(st.session_state.channel_data['statistics']['view_count'])}</div>
+                    <div class="metric-subtext">{len(st.session_state.filtered_videos)} videos in selected period</div>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                fig_tags = px.bar(
-                    tag_counts,
-                    x=tag_counts.values,
-                    y=tag_counts.index,
-                    orientation='h',
-                    labels={"x": "Usage Count", "y": "Tag"},
+            with col3:
+                st.markdown(f"""
+                <div class="metric-box">
+                    <div class="metric-title">Total Videos</div>
+                    <div class="metric-value">{format_number(st.session_state.channel_data['statistics']['video_count'])}</div>
+                    <div class="metric-subtext">{len(st.session_state.filtered_videos)} in current analysis</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+            with col4:
+                avg_engagement = st.session_state.filtered_videos["engagement"].mean()
+                st.markdown(f"""
+                <div class="metric-box">
+                    <div class="metric-title">Avg Engagement</div>
+                    <div class="metric-value">{avg_engagement:.1f}%</div>
+                    <div class="metric-subtext">(Likes + Comments) / Views</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            st.markdown("---")
+            
+            # Performance Charts Section
+            st.subheader("Performance Analytics")
+            
+            # Time range filter
+            with st.expander("📅 Time Range Filter", expanded=False):
+                col_time1, col_time2 = st.columns(2)
+                with col_time1:
+                    new_time_range = st.selectbox(
+                        "Select Time Range",
+                        ["Last 7 days", "Last 30 days", "Last 90 days", "Last 6 months", "Last year", "All time"],
+                        index=2,
+                        key="time_range_select"
+                    )
+                
+                if new_time_range != st.session_state.time_range:
+                    st.session_state.time_range = new_time_range
+                    st.session_state.filtered_videos = filter_videos_by_time(st.session_state.video_df, new_time_range)
+                    st.experimental_rerun()
+            
+            # Row 1: Views Over Time and Top Videos
+            col_chart1, col_chart2 = st.columns(2)
+            
+            with col_chart1:
+                st.markdown("#### 📈 Views Over Time")
+                
+                # Group by week/month based on time range
+                if len(st.session_state.filtered_videos) > 30:
+                    freq = "W"  # Weekly for larger datasets
+                    resample_freq = "Weekly"
+                else:
+                    freq = "D"  # Daily for smaller datasets
+                    resample_freq = "Daily"
+                    
+                views_over_time = st.session_state.filtered_videos.set_index("published_at")["views"].resample(freq).sum().reset_index()
+                
+                fig_views = px.line(
+                    views_over_time, 
+                    x="published_at", 
+                    y="views", 
+                    labels={"published_at": "Date", "views": "Views"},
                     color_discrete_sequence=["#FF4B4B"]
                 )
-                fig_tags.update_layout(
+                fig_views.update_layout(
+                    plot_bgcolor="#1A1D24",
+                    paper_bgcolor="#0E1117",
+                    font={"color": "white"},
+                    hovermode="x unified",
+                    height=400,
+                    margin=dict(l=20, r=20, t=30, b=20)
+                )
+                st.plotly_chart(fig_views, use_container_width=True)
+                
+            with col_chart2:
+                st.markdown("#### 🏆 Top Performing Videos")
+                
+                # Filters for top videos
+                col_top1, col_top2 = st.columns(2)
+                with col_top1:
+                    top_n = st.slider("Number of videos", 5, 20, 10, key="top_n_slider")
+                with col_top2:
+                    sort_by = st.selectbox("Sort by", ["Views", "Likes", "Engagement"], key="top_sort_select")
+                
+                top_videos = st.session_state.filtered_videos.nlargest(top_n, sort_by.lower())
+                
+                fig_top_videos = px.bar(
+                    top_videos, 
+                    x=sort_by.lower(), 
+                    y="title",
+                    orientation='h',
+                    labels={"title": "Video Title", sort_by.lower(): sort_by},
+                    color_discrete_sequence=["#FF4B4B"],
+                    hover_data=["published_at", "duration_formatted", "views", "likes", "comments"]
+                )
+                fig_top_videos.update_layout(
+                    plot_bgcolor="#1A1D24",
+                    paper_bgcolor="#0E1117",
+                    font={"color": "white"},
+                    hovermode="y unified",
+                    height=400,
+                    margin=dict(l=20, r=20, t=30, b=20),
+                    yaxis={'categoryorder':'total ascending'}
+                )
+                st.plotly_chart(fig_top_videos, use_container_width=True)
+            
+            # Row 2: Engagement Analysis and Upload Frequency
+            col_chart3, col_chart4 = st.columns(2)
+            
+            with col_chart3:
+                st.markdown("#### 💬 Engagement Analysis")
+                
+                # Engagement filters
+                col_eng1, col_eng2 = st.columns(2)
+                with col_eng1:
+                    min_views = st.slider("Min views", 0, int(st.session_state.filtered_videos["views"].max()), 1000, key="eng_view_slider")
+                with col_eng2:
+                    duration_filter = st.selectbox("Duration", ["All", "Short (<1 min)", "Medium (1-5 min)", "Long (>5 min)"], key="eng_dur_select")
+                
+                # Apply filters
+                eng_df = st.session_state.filtered_videos[st.session_state.filtered_videos["views"] >= min_views]
+                if duration_filter == "Short (<1 min)":
+                    eng_df = eng_df[eng_df["duration_sec"] < 60]
+                elif duration_filter == "Medium (1-5 min)":
+                    eng_df = eng_df[(eng_df["duration_sec"] >= 60) & (eng_df["duration_sec"] < 300)]
+                elif duration_filter == "Long (>5 min)":
+                    eng_df = eng_df[eng_df["duration_sec"] >= 300]
+                
+                fig_engagement = px.scatter(
+                    eng_df, 
+                    x="views", 
+                    y="engagement",
+                    size="likes",
+                    color="duration_sec",
+                    labels={"views": "Views", "engagement": "Engagement Rate (%)", "duration_sec": "Duration (sec)"},
+                    color_continuous_scale="reds",
+                    hover_name="title",
+                    hover_data=["published_at", "duration_formatted"]
+                )
+                fig_engagement.update_layout(
+                    plot_bgcolor="#1A1D24",
+                    paper_bgcolor="#0E1117",
+                    font={"color": "white"},
+                    hovermode="closest",
+                    height=400,
+                    margin=dict(l=20, r=20, t=30, b=20)
+                )
+                st.plotly_chart(fig_engagement, use_container_width=True)
+                
+            with col_chart4:
+                st.markdown("#### 📅 Upload Frequency")
+                
+                # Upload frequency analysis
+                uploads_by_day = st.session_state.filtered_videos.copy()
+                uploads_by_day["day_of_week"] = uploads_by_day["published_at"].dt.day_name()
+                uploads_by_day["hour"] = uploads_by_day["published_at"].dt.hour
+                
+                # Day of week analysis
+                day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                uploads_day = uploads_by_day["day_of_week"].value_counts().reindex(day_order).reset_index()
+                uploads_day.columns = ["day", "count"]
+                
+                fig_upload_day = px.bar(
+                    uploads_day,
+                    x="day",
+                    y="count",
+                    labels={"day": "Day of Week", "count": "Uploads"},
+                    color_discrete_sequence=["#FF4B4B"]
+                )
+                fig_upload_day.update_layout(
                     plot_bgcolor="#1A1D24",
                     paper_bgcolor="#0E1117",
                     font={"color": "white"},
                     height=400,
                     margin=dict(l=20, r=20, t=30, b=20)
                 )
-                st.plotly_chart(fig_tags, use_container_width=True)
-        
-        st.markdown("---")
-        
-        # Revenue Estimation Section
-        st.subheader("💰 Revenue Estimation")
-        st.markdown("*Estimates based on public view counts and typical CPM ranges*")
-        
-        col_rev1, col_rev2, col_rev3 = st.columns(3)
-        
-        with col_rev1:
-            currency = st.selectbox("Currency", ["USD", "INR", "EUR"], key="currency_select")
-        
-        with col_rev2:
-            cpm_range = st.selectbox("CPM Range", ["Low", "Medium", "High"], key="cpm_select")
-            cpm_ranges = {
-                "Low": {"USD": 1.0, "INR": 40, "EUR": 0.9},
-                "Medium": {"USD": 3.0, "INR": 120, "EUR": 2.7},
-                "High": {"USD": 5.0, "INR": 200, "EUR": 4.5}
-            }
-            selected_cpm = cpm_ranges[cpm_range][currency]
-        
-        with col_rev3:
-            st.metric("Selected CPM", f"{selected_cpm} {currency}")
-        
-        # Calculate estimated earnings
-        total_views = filtered_videos["views"].sum()
-        estimated_earnings = (total_views / 1000) * selected_cpm
-        
-        col_rev4, col_rev5 = st.columns(2)
-        
-        with col_rev4:
-            st.markdown(f"""
-            <div class="metric-box">
-                <div class="metric-title">Estimated Earnings</div>
-                <div class="metric-value">{currency} {estimated_earnings:,.2f}</div>
-                <div class="metric-subtext">Based on {total_views:,} views</div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        with col_rev5:
-            st.markdown(f"""
-            <div class="metric-box">
-                <div class="metric-title">Estimated RPM</div>
-                <div class="metric-value">{currency} {(estimated_earnings / (total_views / 1000)) if total_views > 0 else 0:.2f}</div>
-                <div class="metric-subtext">Revenue Per 1000 views</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.markdown("---")
-        
-        # Detailed Video Performance Table
-        st.subheader("🎬 Detailed Video Performance")
-        
-        # Filters for the table
-        col_table1, col_table2, col_table3 = st.columns(3)
-        
-        with col_table1:
-            table_min_views = st.slider(
-                "Minimum Views", 
-                min_value=0, 
-                max_value=int(filtered_videos["views"].max()), 
-                value=0,
-                key="table_views_slider"
-            )
-            
-        with col_table2:
-            table_min_engagement = st.slider(
-                "Minimum Engagement (%)", 
-                min_value=0.0, 
-                max_value=float(filtered_videos["engagement"].max()), 
-                value=0.0,
-                step=0.5,
-                key="table_eng_slider"
-            )
-            
-        with col_table3:
-            duration_options = ["All"] + duration_labels
-            table_duration_filter = st.selectbox(
-                "Duration Filter",
-                options=duration_options,
-                key="table_dur_select"
-            )
-        
-        # Apply filters to table data
-        table_data = filtered_videos.copy()
-        table_data = table_data[table_data["views"] >= table_min_views]
-        table_data = table_data[table_data["engagement"] >= table_min_engagement]
-        
-        if table_duration_filter != "All":
-            selected_bin = duration_labels.index(table_duration_filter)
-            min_dur = duration_bins[selected_bin]
-            max_dur = duration_bins[selected_bin + 1]
-            table_data = table_data[
-                (table_data["duration_sec"] >= min_dur) & 
-                (table_data["duration_sec"] < max_dur)
-            ]
-        
-        # Display the table
-        st.dataframe(
-            table_data[[
-                "title", "published_at", "views", "likes", "comments", 
-                "engagement", "duration_formatted"
-            ]].rename(columns={
-                "title": "Title",
-                "published_at": "Published Date",
-                "views": "Views",
-                "likes": "Likes",
-                "comments": "Comments",
-                "engagement": "Engagement (%)",
-                "duration_formatted": "Duration"
-            }).sort_values("Views", ascending=False),
-            height=500,
-            use_container_width=True,
-            column_config={
-                "Title": st.column_config.TextColumn(width="large"),
-                "Published Date": st.column_config.DatetimeColumn(format="YYYY-MM-DD"),
-                "Views": st.column_config.NumberColumn(format="%,d"),
-                "Likes": st.column_config.NumberColumn(format="%,d"),
-                "Comments": st.column_config.NumberColumn(format="%,d"),
-                "Engagement (%)": st.column_config.NumberColumn(format="%.1f"),
-                "Duration": st.column_config.TextColumn()
-            }
-        )
-        
-        # Playlists section (if available)
-        try:
-            # Get channel playlists
-            playlists = []
-            next_page_token = None
-            
-            for _ in range(2):  # Max 2 pages (100 playlists)
-                playlists_response = youtube.playlists().list(
-                    part="snippet,contentDetails",
-                    channelId=channel_id,
-                    maxResults=50,
-                    pageToken=next_page_token
-                ).execute()
-                
-                for playlist in playlists_response.get("items", []):
-                    playlists.append({
-                        "title": playlist["snippet"]["title"],
-                        "playlist_id": playlist["id"],
-                        "item_count": playlist["contentDetails"]["itemCount"],
-                        "thumbnail": playlist["snippet"]["thumbnails"]["high"]["url"]
-                    })
-                
-                next_page_token = playlists_response.get("nextPageToken")
-                if not next_page_token:
-                    break
-            
-            if playlists:
-                st.markdown("---")
-                st.subheader("🎵 Playlists")
-                
-                for i, playlist in enumerate(playlists[:5]):  # Show max 5 playlists
-                    col_pl1, col_pl2 = st.columns([1, 4])
-                    
-                    with col_pl1:
-                        st.image(playlist["thumbnail"], width=150)
-                        
-                    with col_pl2:
-                        st.markdown(f"##### {playlist['title']}")
-                        st.markdown(f"**Videos:** {playlist['item_count']}")
-                        st.markdown(f"**Playlist ID:** {playlist['playlist_id']}")
-                    
-                    if i < len(playlists[:5]) - 1:
-                        st.markdown("---")
-        except:
-            pass
-        
-        # Disclaimer
-        st.markdown("---")
-        st.markdown("""
-        <div style="font-size: 12px; color: #AAAAAA;">
-        <strong>Disclaimer:</strong> This dashboard uses YouTube Data API to fetch public channel data. 
-        Revenue estimates are based on typical CPM ranges and should not be considered exact. 
-        Actual earnings may vary based on many factors including audience demographics, 
-        content category, and advertiser demand.
-        </div>
-        """, unsafe_allow_html=True)
+                st.plotly_chart(fig_upload_day, use_container_width=True)
 
 # Run the dashboard
 if __name__ == "__main__":
