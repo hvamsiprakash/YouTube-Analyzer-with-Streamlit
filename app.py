@@ -7,21 +7,27 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import numpy as np
 from dateutil.relativedelta import relativedelta
+from textblob import TextBlob
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+import nltk
+from nltk.sentiment import SentimentIntensityAnalyzer
+from sklearn.cluster import KMeans
 
-# Set your YouTube Data API key here
-YOUTUBE_API_KEY = "AIzaSyD7OUR71LzrVXntYUXlSjUxv1ZCkjNYpGM"
+# Download NLTK data
+nltk.download('vader_lexicon')
 
 # Initialize the YouTube Data API client
-youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=st.secrets["YOUTUBE_API_KEY"])
 
 # Configure Streamlit page
 st.set_page_config(
     page_title="YouTube Pro Analytics",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="auto"
 )
 
-# Custom CSS for dark theme
+# Custom CSS for dark theme with enhanced styling
 def set_dark_theme():
     st.markdown("""
     <style>
@@ -30,6 +36,9 @@ def set_dark_theme():
         --secondary-color: #0E1117;
         --text-color: #FFFFFF;
         --card-bg: #1A1D24;
+        --dark-red: #CC0000;
+        --light-red: #FF6B6B;
+        --accent-red: #FF3333;
     }
     
     .main {
@@ -37,56 +46,67 @@ def set_dark_theme():
         color: var(--text-color);
     }
     
-    .sidebar {
-        background-color: var(--secondary-color) !important;
-        border-right: 1px solid #333 !important;
-    }
-    
-    .sidebar .sidebar-content {
-        background-color: var(--secondary-color) !important;
-    }
-    
-    .st-bw, .st-at, .st-cn {
-        background-color: var(--secondary-color) !important;
-    }
-    
     h1, h2, h3, h4, h5, h6 {
         color: var(--primary-color) !important;
+        border-bottom: 1px solid var(--dark-red);
+        padding-bottom: 8px;
     }
     
-    .metric-box {
+    .metric-container {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 15px;
+        margin-bottom: 30px;
+    }
+    
+    .insight-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 15px;
+        margin-bottom: 30px;
+    }
+    
+    .insight-card {
         background-color: var(--card-bg);
-        border-radius: 8px;
-        padding: 15px;
-        margin-bottom: 15px;
+        border-radius: 10px;
+        padding: 20px;
         border-left: 4px solid var(--primary-color);
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        height: 100%;
     }
     
-    .metric-title {
-        color: #AAAAAA;
-        font-size: 14px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+    .insight-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 20px rgba(255, 75, 75, 0.2);
     }
     
-    .metric-value {
+    .insight-title {
+        color: var(--light-red);
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+    }
+    
+    .insight-value {
         color: var(--text-color);
         font-size: 28px;
-        font-weight: 700;
-        margin-top: 5px;
+        font-weight: 800;
+        margin-bottom: 8px;
     }
     
-    .metric-subtext {
+    .insight-description {
         color: #AAAAAA;
-        font-size: 12px;
-        margin-top: 5px;
+        font-size: 13px;
+        line-height: 1.4;
     }
     
     .stSelectbox, .stSlider, .stDateInput, .stTextInput {
         background-color: var(--card-bg) !important;
         border-color: #333 !important;
+        color: white !important;
     }
     
     .st-bb {
@@ -97,48 +117,49 @@ def set_dark_theme():
         background-color: var(--card-bg) !important;
     }
     
-    .css-1aumxhk {
-        background-color: var(--secondary-color) !important;
-    }
-    
-    .css-1v0mbdj {
-        border: 1px solid #333 !important;
-    }
-    
-    .insight-card {
+    .filter-container {
         background-color: var(--card-bg);
-        border-radius: 10px;
         padding: 15px;
-        margin: 10px;
-        border-left: 4px solid var(--primary-color);
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-        height: 100%;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border: 1px solid #333;
     }
     
-    .insight-title {
-        color: var(--primary-color);
-        font-size: 16px;
-        font-weight: 700;
+    .filter-title {
+        color: var(--light-red);
+        font-size: 14px;
+        font-weight: 600;
         margin-bottom: 10px;
     }
     
-    .insight-value {
-        color: var(--text-color);
-        font-size: 24px;
-        font-weight: 700;
+    .plotly-chart {
+        border-radius: 10px;
+        border: 1px solid #333;
     }
     
-    .insight-description {
-        color: #AAAAAA;
-        font-size: 12px;
-        margin-top: 10px;
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+        width: 8px;
     }
     
-    .filter-container {
-        background-color: var(--card-bg);
-        padding: 10px;
-        border-radius: 8px;
-        margin-bottom: 15px;
+    ::-webkit-scrollbar-track {
+        background: var(--secondary-color);
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: var(--primary-color);
+        border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--accent-red);
+    }
+    
+    /* Custom tooltips */
+    .stTooltip {
+        background-color: var(--card-bg) !important;
+        border: 1px solid var(--primary-color) !important;
+        color: white !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -151,7 +172,7 @@ def get_channel_analytics(channel_id):
     try:
         # Get channel statistics
         channel_response = youtube.channels().list(
-            part="snippet,statistics,brandingSettings,topicDetails",
+            part="snippet,statistics,brandingSettings,topicDetails,contentDetails",
             id=channel_id
         ).execute()
         
@@ -199,7 +220,8 @@ def get_channel_analytics(channel_id):
                         "likes": int(stats.get("likeCount", 0)),
                         "comments": int(stats.get("commentCount", 0)),
                         "thumbnail": snippet.get("thumbnails", {}).get("high", {}).get("url", ""),
-                        "category_id": snippet.get("categoryId", "")
+                        "category_id": snippet.get("categoryId", ""),
+                        "description": snippet.get("description", "")
                     })
             
             next_page_token = videos_response.get("nextPageToken")
@@ -244,7 +266,8 @@ def get_channel_analytics(channel_id):
                 "country": channel_info["snippet"].get("country", "N/A"),
                 "thumbnail": channel_info["snippet"]["thumbnails"]["high"]["url"],
                 "banner": channel_info["brandingSettings"].get("image", {}).get("bannerExternalUrl", "N/A"),
-                "topics": channel_info.get("topicDetails", {}).get("topicCategories", [])
+                "topics": channel_info.get("topicDetails", {}).get("topicCategories", []),
+                "uploads_playlist": channel_info["contentDetails"]["relatedPlaylists"]["uploads"]
             },
             "statistics": {
                 "view_count": int(channel_info["statistics"]["viewCount"]),
@@ -262,78 +285,57 @@ def get_channel_analytics(channel_id):
         st.error(f"❌ Error fetching channel data: {str(e)}")
         return None
 
-# Function to calculate estimated earnings with more sophisticated model
-def calculate_earnings(videos_data, currency="USD", cpm_range="medium"):
-    # RPM (Revenue Per Mille) estimates by category and region
-    rpm_rates = {
-        "USD": {
-            "low": {"US": 1.0, "IN": 0.5, "other": 0.8},
-            "medium": {"US": 3.0, "IN": 1.5, "other": 2.0},
-            "high": {"US": 5.0, "IN": 2.5, "other": 3.5}
-        },
-        "INR": {
-            "low": {"US": 80, "IN": 40, "other": 60},
-            "medium": {"US": 240, "IN": 120, "other": 160},
-            "high": {"US": 400, "IN": 200, "other": 280}
-        },
-        "EUR": {
-            "low": {"US": 0.9, "IN": 0.45, "other": 0.7},
-            "medium": {"US": 2.7, "IN": 1.35, "other": 1.8},
-            "high": {"US": 4.5, "IN": 2.25, "other": 3.15}
-        }
-    }
+# Function to analyze video titles and descriptions
+def analyze_content(videos):
+    titles = [video['title'] for video in videos]
+    descriptions = [video['description'] for video in videos]
     
-    # Calculate total views and views by month
-    total_views = sum(video["views"] for video in videos_data)
+    # Sentiment analysis
+    sia = SentimentIntensityAnalyzer()
+    title_sentiments = [sia.polarity_scores(title)['compound'] for title in titles]
+    avg_sentiment = np.mean(title_sentiments) if title_sentiments else 0
     
-    monthly_data = {}
-    for video in videos_data:
-        try:
-            month = datetime.strptime(video["published_at"], "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m")
-            if month not in monthly_data:
-                monthly_data[month] = {
-                    "views": 0,
-                    "videos": 0,
-                    "estimated_earnings": 0
-                }
-            monthly_data[month]["views"] += video["views"]
-            monthly_data[month]["videos"] += 1
-        except:
-            continue
+    # Word cloud analysis
+    wordcloud_text = ' '.join(titles + descriptions)
     
-    # Calculate earnings by month with different RPM for different regions
-    for month in monthly_data:
-        # Simplified - assuming 60% US views, 10% India, 30% other for premium channels
-        us_views = monthly_data[month]["views"] * 0.6
-        in_views = monthly_data[month]["views"] * 0.1
-        other_views = monthly_data[month]["views"] * 0.3
-        
-        us_earnings = (us_views / 1000) * rpm_rates[currency][cpm_range]["US"]
-        in_earnings = (in_views / 1000) * rpm_rates[currency][cpm_range]["IN"]
-        other_earnings = (other_views / 1000) * rpm_rates[currency][cpm_range]["other"]
-        
-        monthly_data[month]["estimated_earnings"] = us_earnings + in_earnings + other_earnings
-    
-    total_earnings = sum(month["estimated_earnings"] for month in monthly_data.values())
+    # Keyword extraction
+    blob = TextBlob(wordcloud_text)
+    nouns = [word for word, tag in blob.tags if tag == 'NN']
+    top_keywords = pd.Series(nouns).value_counts().head(5).index.tolist()
     
     return {
-        "total_earnings": total_earnings,
-        "monthly_earnings": monthly_data,
-        "currency": currency,
-        "cpm_range": cpm_range,
-        "total_views": total_views,
-        "estimated_rpm": total_earnings / (total_views / 1000) if total_views > 0 else 0
+        'avg_sentiment': avg_sentiment,
+        'top_keywords': top_keywords,
+        'wordcloud_text': wordcloud_text
     }
+
+# Function to cluster videos by performance
+def cluster_videos(videos_df):
+    try:
+        # Prepare features for clustering
+        X = videos_df[['views', 'likes', 'comments', 'engagement']]
+        X = (X - X.mean()) / X.std()  # Standardize
+        
+        # Perform K-means clustering
+        kmeans = KMeans(n_clusters=3, random_state=42)
+        videos_df['cluster'] = kmeans.fit_predict(X)
+        
+        # Analyze clusters
+        cluster_stats = videos_df.groupby('cluster')[['views', 'likes', 'comments', 'engagement']].mean()
+        
+        return videos_df, cluster_stats
+    except:
+        return videos_df, None
 
 # Function to format numbers
 def format_number(num):
     if num >= 1000000000:
-        return f"${num/1000000000:.1f}B" if num < 0 else f"{num/1000000000:.1f}B"
+        return f"{num/1000000000:.1f}B"
     elif num >= 1000000:
-        return f"${num/1000000:.1f}M" if num < 0 else f"{num/1000000:.1f}M"
+        return f"{num/1000000:.1f}M"
     elif num >= 1000:
-        return f"${num/1000:.1f}K" if num < 0 else f"{num/1000:.1f}K"
-    return f"${num}" if num < 0 else str(num)
+        return f"{num/1000:.1f}K"
+    return str(num)
 
 # Function to parse ISO 8601 duration
 def parse_duration(duration):
@@ -402,57 +404,58 @@ def create_time_heatmap(df, date_col, value_col, title):
     
     return fig
 
-# Main dashboard function
-def youtube_dashboard():
+# Main dashboard function - First Half
+def youtube_dashboard_first_half():
     st.title("🎬 YouTube Pro Analytics Dashboard")
-    st.markdown("""
-    <style>
-    .section-divider {
-        border-top: 2px solid #FF4B4B;
-        margin: 20px 0;
-    }
-    </style>
-    """, unsafe_allow_html=True)
     
-    # Sidebar configuration
-    st.sidebar.title("⚙️ Configuration")
-    st.sidebar.markdown("---")
+    # Channel ID input at top
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        channel_id = st.text_input("Enter YouTube Channel ID", key="channel_id", 
+                                 placeholder="UCX6OQ3DkcsbYNE6H8uQQuVA")
+    with col2:
+        st.markdown("")
+        st.markdown("")
+        analyze_btn = st.button("🚀 Analyze Channel", key="analyze_btn")
     
-    channel_id = st.sidebar.text_input("Enter YouTube Channel ID", key="channel_id", 
-                                     placeholder="UCX6OQ3DkcsbYNE6H8uQQuVA")
+    if analyze_btn and not channel_id:
+        st.error("Please enter a valid YouTube Channel ID")
+        st.stop()
     
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("💰 Earnings Settings")
-    
-    currency_options = {"USD": "US Dollar", "INR": "Indian Rupee", "EUR": "Euro"}
-    selected_currency = st.sidebar.selectbox("Currency", options=list(currency_options.keys()), 
-                                           format_func=lambda x: currency_options[x])
-    
-    cpm_options = {"low": "Low CPM", "medium": "Medium CPM", "high": "High CPM"}
-    selected_cpm = st.sidebar.selectbox("CPM Range", options=list(cpm_options.keys()), 
-                                      format_func=lambda x: cpm_options[x])
-    
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("⏳ Time Range")
-    
-    time_range = st.sidebar.selectbox("Data Range", 
-                                     ["Last 30 days", "Last 90 days", "Last 6 months", 
-                                      "Last year", "Last 2 years", "All time"])
-    
-    st.sidebar.markdown("---")
-    
-    if st.sidebar.button("🚀 Analyze Channel", key="analyze_btn", 
-                        help="Fetch and analyze channel data"):
-        if not channel_id:
-            st.error("Please enter a valid YouTube Channel ID")
-            st.stop()
-            
+    if analyze_btn and channel_id:
         with st.spinner("Fetching and analyzing channel data..."):
             channel_data = get_channel_analytics(channel_id)
             
         if not channel_data:
             st.stop()
             
+        # Filters container
+        with st.expander("⚙️ Dashboard Filters", expanded=True):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                time_range = st.selectbox(
+                    "Time Range", 
+                    ["Last 30 days", "Last 90 days", "Last 6 months", 
+                     "Last year", "Last 2 years", "All time"],
+                    key="time_range"
+                )
+                
+            with col2:
+                currency = st.selectbox(
+                    "Currency", 
+                    ["USD", "INR", "EUR"],
+                    key="currency"
+                )
+                
+            with col3:
+                cpm_range = st.selectbox(
+                    "CPM Range", 
+                    ["low", "medium", "high"],
+                    format_func=lambda x: {"low": "Low", "medium": "Medium", "high": "High"}[x],
+                    key="cpm_range"
+                )
+        
         # Calculate time range filter
         now = datetime.now()
         if time_range == "Last 30 days":
@@ -478,34 +481,24 @@ def youtube_dashboard():
             except:
                 continue
         
-        # Calculate earnings
-        earnings_data = calculate_earnings(filtered_videos, selected_currency, selected_cpm)
-        
         # Create DataFrame for filtered videos
         video_df = pd.DataFrame(filtered_videos)
         video_df["published_at"] = pd.to_datetime(video_df["published_at"])
         video_df["duration_sec"] = video_df["duration"].apply(parse_duration)
         video_df["duration_formatted"] = video_df["duration_sec"].apply(format_duration)
         video_df["engagement"] = video_df["engagement"].round(2)
+        video_df["publish_day"] = video_df["published_at"].dt.day_name()
+        video_df["publish_hour"] = video_df["published_at"].dt.hour
+        video_df["publish_month"] = video_df["published_at"].dt.strftime("%Y-%m")
         
-        # Convert monthly earnings to DataFrame
-        monthly_earnings = []
-        for month, data in earnings_data["monthly_earnings"].items():
-            monthly_earnings.append({
-                "month": month,
-                "earnings": data["estimated_earnings"],
-                "views": data["views"],
-                "videos": data["videos"],
-                "earnings_per_video": data["estimated_earnings"] / max(1, data["videos"])
-            })
+        # Content analysis
+        content_analysis = analyze_content(filtered_videos)
         
-        earnings_df = pd.DataFrame(monthly_earnings)
-        earnings_df["month"] = pd.to_datetime(earnings_df["month"])
-        
-        # Main dashboard layout
-        st.markdown("---")
+        # Cluster videos by performance
+        video_df, cluster_stats = cluster_videos(video_df)
         
         # Channel header
+        st.markdown("---")
         col_header1, col_header2 = st.columns([1, 3])
         
         with col_header1:
@@ -523,53 +516,63 @@ def youtube_dashboard():
         
         # Key Metrics
         st.subheader("📊 Channel Performance Summary")
+        
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             st.markdown(f"""
-            <div class="metric-box">
-                <div class="metric-title">Subscribers</div>
-                <div class="metric-value">{format_number(channel_data['statistics']['subscriber_count'])}</div>
-                <div class="metric-subtext">Hidden: {'Yes' if channel_data['statistics']['hidden_subscriber_count'] else 'No'}</div>
+            <div class="insight-card">
+                <div class="insight-title">👥 Subscribers</div>
+                <div class="insight-value">{format_number(channel_data['statistics']['subscriber_count'])}</div>
+                <div class="insight-description">
+                    {'' if channel_data['statistics']['hidden_subscriber_count'] else 'Public subscriber count'}
+                </div>
             </div>
             """, unsafe_allow_html=True)
             
         with col2:
             st.markdown(f"""
-            <div class="metric-box">
-                <div class="metric-title">Total Views</div>
-                <div class="metric-value">{format_number(channel_data['statistics']['view_count'])}</div>
-                <div class="metric-subtext">{len(filtered_videos)} videos in selected period</div>
+            <div class="insight-card">
+                <div class="insight-title">👀 Total Views</div>
+                <div class="insight-value">{format_number(channel_data['statistics']['view_count'])}</div>
+                <div class="insight-description">
+                    {len(filtered_videos)} videos in selected period
+                </div>
             </div>
             """, unsafe_allow_html=True)
             
         with col3:
             st.markdown(f"""
-            <div class="metric-box">
-                <div class="metric-title">Total Videos</div>
-                <div class="metric-value">{format_number(channel_data['statistics']['video_count'])}</div>
-                <div class="metric-subtext">{len(filtered_videos)} in selected period</div>
+            <div class="insight-card">
+                <div class="insight-title">🎬 Total Videos</div>
+                <div class="insight-value">{format_number(channel_data['statistics']['video_count'])}</div>
+                <div class="insight-description">
+                    {len(filtered_videos)} in selected period
+                </div>
             </div>
             """, unsafe_allow_html=True)
             
         with col4:
+            est_earnings = (channel_data['statistics']['view_count'] / 1000) * 3  # Medium CPM estimate
             st.markdown(f"""
-            <div class="metric-box">
-                <div class="metric-title">Estimated Earnings</div>
-                <div class="metric-value">{selected_currency} {format_number(earnings_data['total_earnings'])}</div>
-                <div class="metric-subtext">RPM: {earnings_data['estimated_rpm']:.2f} {selected_currency}</div>
+            <div class="insight-card">
+                <div class="insight-title">💰 Estimated Earnings</div>
+                <div class="insight-value">${format_number(est_earnings)}</div>
+                <div class="insight-description">
+                    Based on medium CPM ($3 per 1000 views)
+                </div>
             </div>
             """, unsafe_allow_html=True)
         
         st.markdown("---")
         
-        # First Half: Top Insights
-        st.subheader("🔍 Top Insights")
+        # First 15 Insights in a 3x5 grid
+        st.subheader("🔍 Channel Insights")
         
-        # Row 1: First 3 Insights
-        col_insight1, col_insight2, col_insight3 = st.columns(3)
+        # Row 1
+        col1, col2, col3 = st.columns(3)
         
-        with col_insight1:
+        with col1:
             # Insight 1: Best Performing Video
             top_video = video_df.iloc[0] if not video_df.empty else None
             if top_video is not None:
@@ -579,17 +582,17 @@ def youtube_dashboard():
                     <div class="insight-value">{format_number(top_video['views'])} views</div>
                     <div class="insight-description">
                         "{top_video['title'][:50]}{'...' if len(top_video['title']) > 50 else ''}"
-                        <br>Published: {pd.to_datetime(top_video['published_at']).strftime('%b %d, %Y')}
+                        <br>Engagement: {top_video['engagement']:.2f}%
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
         
-        with col_insight2:
+        with col2:
             # Insight 2: Average Engagement Rate
             avg_engagement = video_df['engagement'].mean() if not video_df.empty else 0
             st.markdown(f"""
             <div class="insight-card">
-                <div class="insight-title">💬 Average Engagement Rate</div>
+                <div class="insight-title">💬 Avg Engagement Rate</div>
                 <div class="insight-value">{avg_engagement:.2f}%</div>
                 <div class="insight-description">
                     (Likes + Comments) / Views * 100
@@ -598,10 +601,9 @@ def youtube_dashboard():
             </div>
             """, unsafe_allow_html=True)
         
-        with col_insight3:
+        with col3:
             # Insight 3: Optimal Video Length
             if not video_df.empty:
-                # Find the duration range with highest average views
                 video_df['duration_min'] = video_df['duration_sec'] / 60
                 bins = [0, 5, 10, 15, 20, 30, 60, float('inf')]
                 labels = ['<5m', '5-10m', '10-15m', '15-20m', '20-30m', '30-60m', '60m+']
@@ -620,13 +622,12 @@ def youtube_dashboard():
                 </div>
                 """, unsafe_allow_html=True)
         
-        # Row 2: Next 3 Insights
-        col_insight4, col_insight5, col_insight6 = st.columns(3)
+        # Row 2
+        col4, col5, col6 = st.columns(3)
         
-        with col_insight4:
+        with col4:
             # Insight 4: Best Day to Publish
             if not video_df.empty:
-                video_df['publish_day'] = video_df['published_at'].dt.day_name()
                 best_day = video_df.groupby('publish_day')['views'].mean().idxmax()
                 
                 st.markdown(f"""
@@ -639,39 +640,51 @@ def youtube_dashboard():
                 </div>
                 """, unsafe_allow_html=True)
         
-        with col_insight5:
-            # Insight 5: Earnings Potential
-            rpm = earnings_data['estimated_rpm']
-            st.markdown(f"""
-            <div class="insight-card">
-                <div class="insight-title">💰 RPM (Revenue Per Mille)</div>
-                <div class="insight-value">{rpm:.2f} {selected_currency}</div>
-                <div class="insight-description">
-                    Earnings per 1,000 views
-                    <br>Based on {selected_cpm} CPM range
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col_insight6:
-            # Insight 6: Audience Retention
+        with col5:
+            # Insight 5: Best Hour to Publish
             if not video_df.empty:
-                retention_rate = (video_df['views'].sum() / channel_data['statistics']['view_count']) * 100
+                best_hour = video_df.groupby('publish_hour')['views'].mean().idxmax()
+                
                 st.markdown(f"""
                 <div class="insight-card">
-                    <div class="insight-title">👥 Audience Retention</div>
-                    <div class="insight-value">{retention_rate:.1f}%</div>
+                    <div class="insight-title">⏰ Best Hour to Publish</div>
+                    <div class="insight-value">{best_hour}:00 - {best_hour+1}:00</div>
                     <div class="insight-description">
-                        % of total channel views from selected period
+                        Optimal time slot for maximum views
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
         
-        # Row 3: Next 3 Insights
-        col_insight7, col_insight8, col_insight9 = st.columns(3)
+        with col6:
+            # Insight 6: Content Sentiment
+            st.markdown(f"""
+            <div class="insight-card">
+                <div class="insight-title">😊 Content Sentiment</div>
+                <div class="insight-value">{'Positive' if content_analysis['avg_sentiment'] > 0.05 else 'Neutral' if content_analysis['avg_sentiment'] > -0.05 else 'Negative'}</div>
+                <div class="insight-description">
+                    Average sentiment score: {content_analysis['avg_sentiment']:.2f}
+                    <br>(Range: -1 to 1)
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
         
-        with col_insight7:
-            # Insight 7: Content Consistency
+        # Row 3
+        col7, col8, col9 = st.columns(3)
+        
+        with col7:
+            # Insight 7: Top Keywords
+            st.markdown(f"""
+            <div class="insight-card">
+                <div class="insight-title">🔑 Top Keywords</div>
+                <div class="insight-value">{', '.join(content_analysis['top_keywords'][:3])}</div>
+                <div class="insight-description">
+                    Most frequently used nouns in video titles/descriptions
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col8:
+            # Insight 8: Content Consistency
             if len(video_df) > 1:
                 video_df['days_between'] = video_df['published_at'].diff().dt.days
                 avg_days_between = video_df['days_between'].mean()
@@ -686,8 +699,8 @@ def youtube_dashboard():
                 </div>
                 """, unsafe_allow_html=True)
         
-        with col_insight8:
-            # Insight 8: Like-to-View Ratio
+        with col9:
+            # Insight 9: Like-to-View Ratio
             if not video_df.empty:
                 avg_like_ratio = (video_df['likes'].sum() / video_df['views'].sum()) * 100
                 st.markdown(f"""
@@ -700,8 +713,11 @@ def youtube_dashboard():
                 </div>
                 """, unsafe_allow_html=True)
         
-        with col_insight9:
-            # Insight 9: Comment Engagement
+        # Row 4
+        col10, col11, col12 = st.columns(3)
+        
+        with col10:
+            # Insight 10: Comment Engagement
             if not video_df.empty:
                 avg_comment_ratio = (video_df['comments'].sum() / video_df['views'].sum()) * 100
                 st.markdown(f"""
@@ -714,172 +730,178 @@ def youtube_dashboard():
                 </div>
                 """, unsafe_allow_html=True)
         
+        with col11:
+            # Insight 11: View Velocity
+            if not video_df.empty:
+                latest_videos = video_df.sort_values('published_at', ascending=False).head(5)
+                avg_velocity = latest_videos['views'].mean() / (now - latest_videos['published_at'].min()).days
+                st.markdown(f"""
+                <div class="insight-card">
+                    <div class="insight-title">🚀 View Velocity</div>
+                    <div class="insight-value">{format_number(avg_velocity)}/day</div>
+                    <div class="insight-description">
+                        Average daily views for latest 5 videos
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        with col12:
+            # Insight 12: Content Clusters
+            if cluster_stats is not None:
+                best_cluster = cluster_stats['views'].idxmax()
+                st.markdown(f"""
+                <div class="insight-card">
+                    <div class="insight-title">📊 Performance Clusters</div>
+                    <div class="insight-value">Cluster {best_cluster+1}</div>
+                    <div class="insight-description">
+                        Your best-performing content cluster
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # Row 5
+        col13, col14, col15 = st.columns(3)
+        
+        with col13:
+            # Insight 13: Audience Retention
+            if not video_df.empty:
+                retention_rate = (video_df['views'].sum() / channel_data['statistics']['view_count']) * 100
+                st.markdown(f"""
+                <div class="insight-card">
+                    <div class="insight-title">👥 Audience Retention</div>
+                    <div class="insight-value">{retention_rate:.1f}%</div>
+                    <div class="insight-description">
+                        % of total channel views from selected period
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        with col14:
+            # Insight 14: Playlist Performance
+            if channel_data['playlists']:
+                avg_playlist_items = sum(p['item_count'] for p in channel_data['playlists']) / len(channel_data['playlists'])
+                st.markdown(f"""
+                <div class="insight-card">
+                    <div class="insight-title">📚 Playlist Stats</div>
+                    <div class="insight-value">{len(channel_data['playlists'])} playlists</div>
+                    <div class="insight-description">
+                        Avg {avg_playlist_items:.1f} videos per playlist
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        with col15:
+            # Insight 15: Content Diversity
+            if not video_df.empty:
+                unique_categories = video_df['category_id'].nunique()
+                st.markdown(f"""
+                <div class="insight-card">
+                    <div class="insight-title">🌈 Content Diversity</div>
+                    <div class="insight-value">{unique_categories} categories</div>
+                    <div class="insight-description">
+                        Number of different video categories
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        
         st.markdown("---")
         
         # Performance Charts Section
         st.subheader("📈 Performance Analytics")
         
-        # Filters for charts
-        with st.expander("🔍 Chart Filters", expanded=False):
-            col_filter1, col_filter2, col_filter3 = st.columns(3)
-            
-            with col_filter1:
+        # Row 1: Views and Engagement
+        col_chart1, col_chart2 = st.columns(2)
+        
+        with col_chart1:
+            # Filter container for views chart
+            with st.container():
+                st.markdown('<div class="filter-title">Views Over Time</div>', unsafe_allow_html=True)
                 min_views = st.slider(
                     "Minimum Views", 
                     min_value=0, 
                     max_value=int(video_df["views"].max()), 
                     value=0,
-                    step=1000
+                    step=1000,
+                    key="min_views"
                 )
                 
-            with col_filter2:
-                min_duration = st.slider(
-                    "Minimum Duration (minutes)", 
-                    min_value=0, 
-                    max_value=int(video_df["duration_sec"].max() // 60), 
-                    value=0,
-                    step=1
+                filtered_chart_df = video_df[video_df["views"] >= min_views]
+                
+                # Views over time with trendline
+                fig_views = px.scatter(
+                    filtered_chart_df, 
+                    x="published_at", 
+                    y="views",
+                    trendline="lowess",
+                    trendline_color_override="#FF4B4B",
+                    title="Video Views Over Time with Trend",
+                    color_discrete_sequence=["#FF4B4B"],
+                    labels={"published_at": "Publish Date", "views": "Views"},
+                    hover_name="title",
+                    hover_data=["engagement", "duration_formatted"]
                 )
-                
-            with col_filter3:
-                min_engagement = st.slider(
-                    "Minimum Engagement (%)", 
-                    min_value=0.0, 
-                    max_value=float(video_df["engagement"].max()), 
-                    value=0.0,
-                    step=0.5
-                )
-        
-        # Apply filters
-        filtered_chart_df = video_df[
-            (video_df["views"] >= min_views) & 
-            (video_df["duration_sec"] >= min_duration * 60) &
-            (video_df["engagement"] >= min_engagement)
-        ]
-        
-        # Row 1: Views and Earnings
-        col_chart1, col_chart2 = st.columns(2)
-        
-        with col_chart1:
-            # Views over time with trendline
-            fig_views = px.scatter(
-                filtered_chart_df, 
-                x="published_at", 
-                y="views",
-                trendline="lowess",
-                trendline_color_override="#FF4B4B",
-                title="Video Views Over Time with Trend",
-                color_discrete_sequence=["#FF4B4B"],
-                labels={"published_at": "Publish Date", "views": "Views"},
-                hover_name="title",
-                hover_data=["engagement", "duration_formatted"]
-            )
-            fig_views.update_layout(
-                plot_bgcolor="#1A1D24",
-                paper_bgcolor="#0E1117",
-                font={"color": "white"},
-                hovermode="closest",
-                height=400
-            )
-            st.plotly_chart(fig_views, use_container_width=True)
-            
-        with col_chart2:
-            # Monthly earnings with annotations
-            if not earnings_df.empty:
-                fig_earnings = go.Figure()
-                
-                fig_earnings.add_trace(go.Bar(
-                    x=earnings_df["month"],
-                    y=earnings_df["earnings"],
-                    name="Earnings",
-                    marker_color="#FF4B4B"
-                ))
-                
-                fig_earnings.add_trace(go.Scatter(
-                    x=earnings_df["month"],
-                    y=earnings_df["earnings"],
-                    mode='lines+markers',
-                    name="Trend",
-                    line=dict(color='white', width=2)
-                ))
-                
-                # Add annotations for peaks
-                max_earning = earnings_df["earnings"].max()
-                max_month = earnings_df.loc[earnings_df["earnings"].idxmax(), "month"]
-                
-                fig_earnings.add_annotation(
-                    x=max_month,
-                    y=max_earning,
-                    text=f"Peak: {max_earning:.0f} {selected_currency}",
-                    showarrow=True,
-                    arrowhead=1,
-                    ax=0,
-                    ay=-40
-                )
-                
-                fig_earnings.update_layout(
-                    title=f"Monthly Earnings ({selected_currency})",
+                fig_views.update_layout(
                     plot_bgcolor="#1A1D24",
                     paper_bgcolor="#0E1117",
                     font={"color": "white"},
-                    hovermode="x unified",
+                    hovermode="closest",
                     height=400
                 )
-                st.plotly_chart(fig_earnings, use_container_width=True)
-        
-        # Row 2: Engagement and Duration Analysis
-        col_chart3, col_chart4 = st.columns(2)
-        
-        with col_chart3:
-            # Engagement vs Duration bubble chart
-            fig_engagement = px.scatter(
-                filtered_chart_df,
-                x="duration_sec",
-                y="engagement",
-                size="views",
-                color="views",
-                title="Engagement Rate vs Video Duration",
-                color_continuous_scale="reds",
-                labels={
-                    "duration_sec": "Duration (seconds)",
-                    "engagement": "Engagement Rate (%)",
-                    "views": "Views"
-                },
-                hover_name="title",
-                hover_data=["published_at"]
-            )
+                st.plotly_chart(fig_views, use_container_width=True)
             
-            # Add optimal duration line
-            if not filtered_chart_df.empty:
-                optimal_duration = filtered_chart_df.groupby(pd.cut(filtered_chart_df["duration_sec"], bins=10))["engagement"].mean().idxmax().mid
-                fig_engagement.add_vline(
-                    x=optimal_duration, 
-                    line_dash="dash", 
-                    line_color="white",
-                    annotation_text=f"Optimal: ~{optimal_duration//60}m",
-                    annotation_position="top right"
+        with col_chart2:
+            # Filter container for engagement chart
+            with st.container():
+                st.markdown('<div class="filter-title">Engagement Analysis</div>', unsafe_allow_html=True)
+                min_duration = st.slider(
+                    "Minimum Duration (min)", 
+                    min_value=0, 
+                    max_value=int(video_df["duration_sec"].max() // 60), 
+                    value=0,
+                    step=1,
+                    key="min_duration"
                 )
-            
-            fig_engagement.update_layout(
-                plot_bgcolor="#1A1D24",
-                paper_bgcolor="#0E1117",
-                font={"color": "white"},
-                hovermode="closest",
-                height=400
-            )
-            st.plotly_chart(fig_engagement, use_container_width=True)
-            
-        with col_chart4:
-            # Time heatmap of publishing activity
-            if not filtered_chart_df.empty:
-                fig_heatmap = create_time_heatmap(
-                    filtered_chart_df,
-                    "published_at",
-                    "views",
-                    "Publishing Activity Heatmap (Views by Day/Week)"
+                
+                filtered_eng_df = video_df[video_df["duration_sec"] >= min_duration * 60]
+                
+                # Engagement vs Duration bubble chart
+                fig_engagement = px.scatter(
+                    filtered_eng_df,
+                    x="duration_sec",
+                    y="engagement",
+                    size="views",
+                    color="views",
+                    title="Engagement Rate vs Video Duration",
+                    color_continuous_scale="reds",
+                    labels={
+                        "duration_sec": "Duration (seconds)",
+                        "engagement": "Engagement Rate (%)",
+                        "views": "Views"
+                    },
+                    hover_name="title",
+                    hover_data=["published_at"]
                 )
-                st.plotly_chart(fig_heatmap, use_container_width=True)
+                
+                # Add optimal duration line
+                if not filtered_eng_df.empty:
+                    optimal_duration = filtered_eng_df.groupby(pd.cut(filtered_eng_df["duration_sec"], bins=10))["engagement"].mean().idxmax().mid
+                    fig_engagement.add_vline(
+                        x=optimal_duration, 
+                        line_dash="dash", 
+                        line_color="white",
+                        annotation_text=f"Optimal: ~{optimal_duration//60}m",
+                        annotation_position="top right"
+                    )
+                
+                fig_engagement.update_layout(
+                    plot_bgcolor="#1A1D24",
+                    paper_bgcolor="#0E1117",
+                    font={"color": "white"},
+                    hovermode="closest",
+                    height=400
+                )
+                st.plotly_chart(fig_engagement, use_container_width=True)
 
-# Run the dashboard
+# Run the first half of the dashboard
 if __name__ == "__main__":
-    youtube_dashboard()
+    youtube_dashboard_first_half()
