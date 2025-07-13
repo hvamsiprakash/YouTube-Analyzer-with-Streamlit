@@ -9,7 +9,7 @@ import numpy as np
 from dateutil.relativedelta import relativedelta
 
 # Set your YouTube Data API key here
-YOUTUBE_API_KEY = "AIzaSyD7OUR71LzrVXntYUXlSjUxv1ZCkjNYpGM"
+YOUTUBE_API_KEY = "AIzaSyDmmBlNkNyk9hiUUyGY-nFjYfr2AG_AlEo"
 
 # Initialize the YouTube Data API client
 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
