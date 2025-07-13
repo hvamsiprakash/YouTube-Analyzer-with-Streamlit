@@ -730,20 +730,7 @@ def youtube_dashboard():
                 </div>
                 """, unsafe_allow_html=True)
             
-            # Insight 2: Average Engagement Rate
-            avg_engagement = video_df['engagement'].mean() if not video_df.empty else 0
-            st.markdown(f"""
-            <div class="insight-card">
-                <div class="insight-title">💬 Average Engagement Rate</div>
-                <div class="insight-value">{avg_engagement:.2f}%</div>
-                <div class="insight-description">
-                    (Likes + Comments) / Views * 100
-                    <br>Higher than 5% is considered good
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Insight 3: Optimal Video Length
+            # Insight 2: Optimal Video Length
             if not video_df.empty:
                 bins = [0, 5, 10, 15, 20, 30, 60, float('inf')]
                 labels = ['<5m', '5-10m', '10-15m', '15-20m', '20-30m', '30-60m', '60m+']
@@ -762,12 +749,7 @@ def youtube_dashboard():
                 </div>
                 """, unsafe_allow_html=True)
             
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        with st.container():
-            st.markdown('<div class="insight-grid">', unsafe_allow_html=True)
-            
-            # Insight 4: Best Day to Publish
+            # Insight 3: Best Day to Publish
             if not video_df.empty:
                 best_day = video_df.groupby('publish_day')['views'].mean().idxmax()
                 
@@ -781,7 +763,12 @@ def youtube_dashboard():
                 </div>
                 """, unsafe_allow_html=True)
             
-            # Insight 5: Earnings Potential
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        with st.container():
+            st.markdown('<div class="insight-grid">', unsafe_allow_html=True)
+            
+            # Insight 4: Earnings Potential
             rpm = earnings_data['estimated_rpm']
             st.markdown(f"""
             <div class="insight-card">
@@ -794,7 +781,7 @@ def youtube_dashboard():
             </div>
             """, unsafe_allow_html=True)
             
-            # Insight 6: Audience Retention
+            # Insight 5: Audience Retention
             if not video_df.empty:
                 retention_rate = (video_df['views'].sum() / channel_data['statistics']['view_count']) * 100
                 st.markdown(f"""
@@ -807,12 +794,7 @@ def youtube_dashboard():
                 </div>
                 """, unsafe_allow_html=True)
             
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        with st.container():
-            st.markdown('<div class="insight-grid">', unsafe_allow_html=True)
-            
-            # Insight 7: Content Consistency
+            # Insight 6: Content Consistency
             if len(video_df) > 1:
                 video_df['days_between'] = video_df['published_at'].diff().dt.days
                 avg_days_between = video_df['days_between'].mean()
@@ -827,7 +809,12 @@ def youtube_dashboard():
                 </div>
                 """, unsafe_allow_html=True)
             
-            # Insight 8: Like-to-View Ratio
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        with st.container():
+            st.markdown('<div class="insight-grid">', unsafe_allow_html=True)
+            
+            # Insight 7: Like-to-View Ratio
             if not video_df.empty:
                 avg_like_ratio = (video_df['likes'].sum() / video_df['views'].sum()) * 100
                 st.markdown(f"""
@@ -840,25 +827,7 @@ def youtube_dashboard():
                 </div>
                 """, unsafe_allow_html=True)
             
-            # Insight 9: Comment Engagement
-            if not video_df.empty:
-                avg_comment_ratio = (video_df['comments'].sum() / video_df['views'].sum()) * 100
-                st.markdown(f"""
-                <div class="insight-card">
-                    <div class="insight-title">💬 Comment Engagement</div>
-                    <div class="insight-value">{avg_comment_ratio:.2f}%</div>
-                    <div class="insight-description">
-                        % of viewers who leave comments
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        with st.container():
-            st.markdown('<div class="insight-grid">', unsafe_allow_html=True)
-            
-            # Insight 10: Best Hour to Publish
+            # Insight 8: Best Hour to Publish
             if not video_df.empty:
                 best_hour = video_df.groupby('publish_hour')['views'].mean().idxmax()
                 best_hour_str = f"{best_hour}:00 - {best_hour+1}:00"
@@ -873,7 +842,7 @@ def youtube_dashboard():
                 </div>
                 """, unsafe_allow_html=True)
             
-            # Insight 11: Earnings Growth
+            # Insight 9: Earnings Growth
             if len(earnings_df) > 1:
                 growth_rate = ((earnings_df['earnings'].iloc[-1] - earnings_df['earnings'].iloc[0]) / 
                               earnings_df['earnings'].iloc[0]) * 100
@@ -889,74 +858,9 @@ def youtube_dashboard():
                 </div>
                 """, unsafe_allow_html=True)
             
-            # Insight 12: Video Categories
-            if not video_df.empty and 'category_id' in video_df.columns:
-                category_counts = video_df['category_id'].value_counts().nlargest(1)
-                if not category_counts.empty:
-                    main_category = category_counts.index[0]
-                    st.markdown(f"""
-                    <div class="insight-card">
-                        <div class="insight-title">🏷️ Main Content Category</div>
-                        <div class="insight-value">Category {main_category}</div>
-                        <div class="insight-description">
-                            Most frequent category in your videos
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
             st.markdown('</div>', unsafe_allow_html=True)
-        
-        with st.container():
-            st.markdown('<div class="insight-grid">', unsafe_allow_html=True)
-            
-            # Insight 13: Quarterly Performance
-            if not video_df.empty:
-                quarterly_views = video_df.groupby('publish_quarter')['views'].sum()
-                best_quarter = quarterly_views.idxmax()
-                
-                st.markdown(f"""
-                <div class="insight-card">
-                    <div class="insight-title">📊 Best Performing Quarter</div>
-                    <div class="insight-value">Q{best_quarter}</div>
-                    <div class="insight-description">
-                        Quarter with highest total views
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Insight 14: Playlist Performance
-            if channel_data.get('playlists'):
-                playlist_count = len(channel_data['playlists'])
-                avg_playlist_items = sum(p['item_count'] for p in channel_data['playlists']) / playlist_count
-                
-                st.markdown(f"""
-                <div class="insight-card">
-                    <div class="insight-title">🎵 Playlist Stats</div>
-                    <div class="insight-value">{playlist_count} playlists</div>
-                    <div class="insight-description">
-                        Avg. {avg_playlist_items:.1f} videos per playlist
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Insight 15: Video Duration Trend
-            if len(video_df) > 5:
-                duration_trend = video_df['duration_min'].pct_change(periods=5).iloc[-1] * 100
-                trend_class = "positive" if duration_trend > 0 else "negative" if duration_trend < 0 else "neutral"
-                trend_direction = "↑" if duration_trend > 0 else "↓" if duration_trend < 0 else "→"
-                
-                st.markdown(f"""
-                <div class="insight-card">
-                    <div class="insight-title">⏳ Duration Trend</div>
-                    <div class="insight-value">{trend_direction} {abs(duration_trend):.1f}%</div>
-                    <div class="insight-description">
-                        <span class="{trend_class}">5-video duration change</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-        
+
+
         st.markdown("---")
         
         # Performance Charts Section
