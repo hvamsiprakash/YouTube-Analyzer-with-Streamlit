@@ -30,7 +30,7 @@ def get_base64_image(image_path):
 
 # Custom CSS for dark theme with red accents
 def set_dark_theme():
-    youtube_logo = get_base64_image("images/youtube_png.png")
+    youtube_logo = get_base64_image("images/youtube_png")
     
     st.markdown(f"""
     <style>
