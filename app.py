@@ -237,7 +237,7 @@ def set_dark_theme():
     footer {visibility: hidden;}
     header {visibility: hidden;}
     
-    /* Button styling */
+    /* Apply button styling */
     .stButton>button {
         background-color: var(--primary-color) !important;
         color: white !important;
@@ -254,22 +254,22 @@ def set_dark_theme():
         box-shadow: 0 4px 8px rgba(255, 0, 0, 0.3) !important;
     }
     
-    /* Filter card styling */
-    .filter-card {
+    /* Filter container styling */
+    .filter-container {
         background-color: var(--card-bg);
         border-radius: 10px;
         padding: 15px;
-        margin-bottom: 15px;
-        border-left: 4px solid var(--light-red);
+        margin-bottom: 20px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
     }
     
     /* Advanced chart styling */
     .advanced-chart {
         background-color: var(--card-bg);
         border-radius: 10px;
-        padding: 15px;
+        padding: 20px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         margin-bottom: 20px;
-        border: 1px solid #333;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -341,6 +341,30 @@ def get_channel_analytics(channel_id):
         for video in videos:
             video["engagement"] = ((video["likes"] + video["comments"]) / max(1, video["views"])) * 100
         
+        # Get channel playlists
+        playlists = []
+        next_page_token = None
+        
+        for _ in range(5):  # Max 5 pages (250 playlists)
+            playlists_response = youtube.playlists().list(
+                part="snippet,contentDetails",
+                channelId=channel_id,
+                maxResults=50,
+                pageToken=next_page_token
+            ).execute()
+            
+            for playlist in playlists_response.get("items", []):
+                playlists.append({
+                    "title": playlist["snippet"]["title"],
+                    "playlist_id": playlist["id"],
+                    "item_count": playlist["contentDetails"]["itemCount"],
+                    "thumbnail": playlist["snippet"]["thumbnails"]["high"]["url"]
+                })
+            
+            next_page_token = playlists_response.get("nextPageToken")
+            if not next_page_token:
+                break
+        
         # Format the data
         channel_data = {
             "basic_info": {
@@ -359,7 +383,8 @@ def get_channel_analytics(channel_id):
                 "video_count": int(channel_info["statistics"]["videoCount"]),
                 "hidden_subscriber_count": channel_info["statistics"]["hiddenSubscriberCount"]
             },
-            "videos": sorted(videos, key=lambda x: x["views"], reverse=True)
+            "videos": sorted(videos, key=lambda x: x["views"], reverse=True),
+            "playlists": playlists
         }
         
         return channel_data
@@ -477,69 +502,74 @@ def format_duration(seconds):
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}" if hours > 0 else f"{minutes:02d}:{seconds:02d}"
 
 # Function to create advanced time series chart
-def create_advanced_time_chart(df, x_col, y_col, title):
+def create_advanced_time_chart(df, x_col, y_col, title, color="#FF4B4B"):
     fig = go.Figure()
     
     # Add main line
     fig.add_trace(go.Scatter(
         x=df[x_col],
         y=df[y_col],
-        mode='lines+markers',
-        name=y_col,
-        line=dict(color='#FF4B4B', width=3),
-        marker=dict(size=8, color='#FF4B4B'),
-        hovertemplate='%{x}<br>%{y:,}'
+        mode='lines',
+        name=title,
+        line=dict(color=color, width=3),
+        hovertemplate='%{x|%b %d, %Y}<br>%{y:,}'
     ))
     
-    # Add 30-day moving average
-    if len(df) > 30:
-        df['moving_avg'] = df[y_col].rolling(window=30, min_periods=1).mean()
+    # Add markers for peaks
+    max_value = df[y_col].max()
+    min_value = df[y_col].min()
+    
+    if max_value > 0:
+        max_date = df.loc[df[y_col].idxmax(), x_col]
+        fig.add_trace(go.Scatter(
+            x=[max_date],
+            y=[max_value],
+            mode='markers',
+            marker=dict(color='#00FF00', size=10),
+            name='Peak',
+            hovertemplate=f'Peak: {max_value:,}<extra></extra>'
+        ))
+    
+    # Add markers for lows
+    if min_value < max_value:
+        min_date = df.loc[df[y_col].idxmin(), x_col]
+        fig.add_trace(go.Scatter(
+            x=[min_date],
+            y=[min_value],
+            mode='markers',
+            marker=dict(color='#FF0000', size=10),
+            name='Low',
+            hovertemplate=f'Low: {min_value:,}<extra></extra>'
+        ))
+    
+    # Add moving average
+    if len(df) > 7:
+        df['moving_avg'] = df[y_col].rolling(window=7, min_periods=1).mean()
         fig.add_trace(go.Scatter(
             x=df[x_col],
             y=df['moving_avg'],
             mode='lines',
-            name='30-Day Avg',
-            line=dict(color='white', width=2, dash='dot'),
-            hovertemplate='%{x}<br>%{y:,.2f}'
+            name='7-Day Avg',
+            line=dict(color='white', width=2, dash='dash'),
+            hovertemplate='7-Day Avg: %{y:,}<extra></extra>'
         ))
     
-    # Add annotations for peaks
-    max_val = df[y_col].max()
-    max_date = df.loc[df[y_col].idxmax(), x_col]
-    fig.add_annotation(
-        x=max_date,
-        y=max_val,
-        text=f"Peak: {max_val:,}",
-        showarrow=True,
-        arrowhead=1,
-        ax=0,
-        ay=-40,
-        bgcolor="rgba(0,0,0,0.8)",
-        font=dict(color="white")
-    )
-    
-    # Add range slider
     fig.update_layout(
-        xaxis=dict(
-            rangeselector=dict(
-                buttons=list([
-                    dict(count=1, label="1m", step="month", stepmode="backward"),
-                    dict(count=6, label="6m", step="month", stepmode="backward"),
-                    dict(count=1, label="YTD", step="year", stepmode="todate"),
-                    dict(count=1, label="1y", step="year", stepmode="backward"),
-                    dict(step="all")
-                ])
-            ),
-            rangeslider=dict(visible=True),
-            type="date"
-        ),
-        yaxis=dict(title=y_col),
         title=title,
         plot_bgcolor="#1A1D24",
         paper_bgcolor="#0E1117",
-        font=dict(color="white"),
+        font={"color": "white"},
         hovermode="x unified",
         height=500,
+        xaxis=dict(
+            showgrid=False,
+            title="Date"
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor="#333",
+            title=y_col
+        ),
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -561,9 +591,9 @@ def create_advanced_scatter(df, x_col, y_col, size_col, color_col, title):
         color=color_col,
         title=title,
         hover_name="title",
-        hover_data=["published_at", "duration_formatted"],
+        hover_data=["published_at", "engagement", "duration_formatted"],
         color_continuous_scale="reds",
-        size_max=30,
+        size_max=50,
         trendline="lowess",
         trendline_color_override="white"
     )
@@ -571,65 +601,52 @@ def create_advanced_scatter(df, x_col, y_col, size_col, color_col, title):
     fig.update_layout(
         plot_bgcolor="#1A1D24",
         paper_bgcolor="#0E1117",
-        font=dict(color="white"),
+        font={"color": "white"},
         hovermode="closest",
         height=500,
+        xaxis=dict(
+            showgrid=False,
+            title=x_col
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor="#333",
+            title=y_col
+        ),
         coloraxis_colorbar=dict(
-            title=color_col,
-            tickprefix="",
-            ticks="outside"
+            title=color_col
         )
     )
     
     return fig
 
 # Function to create advanced bar chart
-def create_advanced_bar_chart(df, x_col, y_col, title):
-    fig = px.bar(
-        df,
-        x=x_col,
-        y=y_col,
-        title=title,
-        color_discrete_sequence=["#FF4B4B"],
-        text=y_col
-    )
+def create_advanced_bar_chart(df, x_col, y_col, title, color="#FF4B4B"):
+    fig = go.Figure()
     
-    fig.update_traces(
-        texttemplate='%{text:,}',
-        textposition='outside',
-        marker_line_color='rgb(0,0,0)',
-        marker_line_width=1.5
-    )
+    fig.add_trace(go.Bar(
+        x=df[x_col],
+        y=df[y_col],
+        marker_color=color,
+        hovertemplate='%{x}<br>%{y:,}<extra></extra>'
+    ))
     
     fig.update_layout(
-        plot_bgcolor="#1A1D24",
-        paper_bgcolor="#0E1117",
-        font=dict(color="white"),
-        hovermode="x",
-        uniformtext_minsize=8,
-        uniformtext_mode='hide',
-        height=400
-    )
-    
-    return fig
-
-# Function to create advanced histogram
-def create_advanced_histogram(df, x_col, title, nbins=20):
-    fig = px.histogram(
-        df,
-        x=x_col,
         title=title,
-        nbins=nbins,
-        color_discrete_sequence=["#FF4B4B"],
-        marginal="box"
-    )
-    
-    fig.update_layout(
         plot_bgcolor="#1A1D24",
         paper_bgcolor="#0E1117",
-        font=dict(color="white"),
-        hovermode="x",
-        height=400
+        font={"color": "white"},
+        hovermode="x unified",
+        height=500,
+        xaxis=dict(
+            showgrid=False,
+            title=x_col
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor="#333",
+            title=y_col
+        )
     )
     
     return fig
@@ -703,29 +720,13 @@ def youtube_dashboard():
         video_df["publish_day"] = video_df["published_at"].dt.day_name()
         video_df["publish_month"] = video_df["published_at"].dt.strftime("%Y-%m")
         video_df["publish_hour"] = video_df["published_at"].dt.hour
+        video_df["publish_quarter"] = video_df["published_at"].dt.quarter
         video_df["duration_min"] = video_df["duration_sec"] / 60
         
-        # Categorize video duration
+        # Add duration bins
         bins = [0, 5, 10, 15, 20, 30, 60, float('inf')]
         labels = ['<5m', '5-10m', '10-15m', '15-20m', '20-30m', '30-60m', '60m+']
         video_df['duration_bin'] = pd.cut(video_df['duration_min'], bins=bins, labels=labels)
-        
-        # Calculate earnings with default settings
-        earnings_data = calculate_earnings(filtered_videos)
-        
-        # Convert monthly earnings to DataFrame
-        monthly_earnings = []
-        for month, data in earnings_data["monthly_earnings"].items():
-            monthly_earnings.append({
-                "month": month,
-                "earnings": data["estimated_earnings"],
-                "views": data["views"],
-                "videos": data["videos"],
-                "earnings_per_video": data["estimated_earnings"] / max(1, data["videos"])
-            })
-        
-        earnings_df = pd.DataFrame(monthly_earnings)
-        earnings_df["month"] = pd.to_datetime(earnings_df["month"])
         
         # Main dashboard layout
         st.markdown("---")
@@ -746,7 +747,7 @@ def youtube_dashboard():
         
         st.markdown("---")
         
-        # Key Metrics (unchanged as per request)
+        # Key Metrics
         st.subheader("📊 Channel Performance Summary")
         
         # Create 3x3 grid for metrics
@@ -790,6 +791,8 @@ def youtube_dashboard():
             col4, col5, col6 = st.columns(3)
             
             with col4:
+                # Calculate earnings with default settings
+                earnings_data = calculate_earnings(filtered_videos)
                 st.markdown(f"""
                 <div class="metric-card">
                     <div class="metric-title">Estimated Earnings</div>
@@ -826,7 +829,7 @@ def youtube_dashboard():
         
         st.markdown("---")
         
-        # Top Insights Section (unchanged as per request)
+        # Top Insights Section
         st.subheader("🔍 Top Insights")
         
         # Create 3x3 grid for insights
@@ -885,14 +888,14 @@ def youtube_dashboard():
                 # RPM (Revenue Per Mille)
                 rpm = earnings_data['estimated_rpm']
                 st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-title">💰 RPM (Revenue Per Mille)</div>
-                        <div class="metric-value">${rpm:.2f}</div>
-                        <div class="metric-change">
-                            <span class="neutral">Earnings per 1,000 views</span>
-                        </div>
+                <div class="metric-card">
+                    <div class="metric-title">💰 RPM (Revenue Per Mille)</div>
+                    <div class="metric-value">${rpm:.2f}</div>
+                    <div class="metric-change">
+                        <span class="neutral">Earnings per 1,000 views</span>
                     </div>
-                    """, unsafe_allow_html=True)
+                </div>
+                """, unsafe_allow_html=True)
             
             with col_insight5:
                 # Audience Retention
@@ -926,7 +929,7 @@ def youtube_dashboard():
         
         st.markdown("---")
         
-        # Performance Analytics Section (revamped)
+        # Performance Charts Section
         st.subheader("📈 Performance Analytics")
         
         # Tab layout for different chart types
@@ -936,9 +939,10 @@ def youtube_dashboard():
             # Views Analysis Tab
             st.markdown("### Video Views Analysis")
             
-            # Filters with apply button
-            with st.expander("🔍 Filter Options", expanded=False):
-                col1, col2, col3 = st.columns([1, 1, 1])
+            # Create filter container with apply button
+            with st.container():
+                st.markdown("#### Filters")
+                col1, col2, col3 = st.columns([2, 2, 1])
                 
                 with col1:
                     min_views = st.slider(
@@ -947,28 +951,23 @@ def youtube_dashboard():
                         max_value=int(video_df["views"].max()), 
                         value=0,
                         step=1000,
-                        key="views_min_views"
+                        key="min_views"
                     )
                 
                 with col2:
                     duration_filter = st.selectbox(
                         "Duration Range",
                         ["All", "<5 min", "5-10 min", "10-15 min", "15-20 min", "20-30 min", "30+ min"],
-                        key="views_duration_filter"
+                        key="duration_filter"
                     )
                 
                 with col3:
-                    st.markdown("")  # Spacer
                     st.markdown("")
-                    apply_views_filters = st.button("Apply Filters", key="apply_views_filters")
+                    st.markdown("")
+                    apply_views_filter = st.button("Apply Filters", key="apply_views")
             
-            # Apply filters when button is clicked
-            if 'apply_views_filters' not in st.session_state:
-                st.session_state.apply_views_filters = False
-            
-            if apply_views_filters or st.session_state.apply_views_filters:
-                st.session_state.apply_views_filters = True
-                
+            # Apply filters only when button is clicked
+            if apply_views_filter:
                 filtered_views_df = video_df[video_df["views"] >= min_views]
                 
                 if duration_filter != "All":
@@ -984,57 +983,69 @@ def youtube_dashboard():
                         filtered_views_df = filtered_views_df[(filtered_views_df["duration_min"] >= 20) & (filtered_views_df["duration_min"] < 30)]
                     else:  # 30+ min
                         filtered_views_df = filtered_views_df[filtered_views_df["duration_min"] >= 30]
-                
-                # Display filtered results
+            else:
+                filtered_views_df = video_df
+            
+            # Display filtered data count
+            st.markdown(f"Showing {len(filtered_views_df)} videos matching your criteria")
+            
+            # Row 1: Views over time and scatter plot
+            col_chart1, col_chart2 = st.columns(2)
+            
+            with col_chart1:
+                # Advanced views over time chart
                 if not filtered_views_df.empty:
-                    # Row 1: Advanced time series and scatter plot
-                    col_chart1, col_chart2 = st.columns(2)
-                    
-                    with col_chart1:
-                        st.markdown("#### Views Over Time with Trend Analysis")
-                        fig_views = create_advanced_time_chart(
-                            filtered_views_df.sort_values("published_at"), 
-                            "published_at", 
-                            "views", 
-                            "Video Views Over Time"
-                        )
-                        st.plotly_chart(fig_views, use_container_width=True)
-                    
-                    with col_chart2:
-                        st.markdown("#### Views vs Duration Analysis")
-                        fig_scatter = create_advanced_scatter(
-                            filtered_views_df,
-                            "duration_min",
-                            "views",
-                            "likes",
-                            "engagement",
-                            "Views vs Video Duration (Size by Likes, Color by Engagement)"
-                        )
-                        st.plotly_chart(fig_scatter, use_container_width=True)
-                    
-                    # Row 2: Distribution and performance by day
-                    col_chart3, col_chart4 = st.columns(2)
-                    
-                    with col_chart3:
-                        st.markdown("#### Views Distribution by Duration")
-                        fig_dist = create_advanced_histogram(
-                            filtered_views_df,
-                            "views",
-                            "Distribution of Video Views",
-                            nbins=20
-                        )
-                        st.plotly_chart(fig_dist, use_container_width=True)
-                    
-                    with col_chart4:
-                        st.markdown("#### Total Views by Day of Week")
-                        day_df = filtered_views_df.groupby('publish_day')['views'].sum().reset_index()
-                        fig_day = create_advanced_bar_chart(
-                            day_df,
-                            "publish_day",
-                            "views",
-                            "Total Views by Day of Week"
-                        )
-                        st.plotly_chart(fig_day, use_container_width=True)
+                    fig_views = create_advanced_time_chart(
+                        filtered_views_df.sort_values("published_at"), 
+                        "published_at", 
+                        "views", 
+                        "Video Views Over Time"
+                    )
+                    st.plotly_chart(fig_views, use_container_width=True)
+                else:
+                    st.warning("No videos match the selected filters")
+                
+            with col_chart2:
+                # Advanced scatter plot of views vs duration
+                if not filtered_views_df.empty:
+                    fig_scatter = create_advanced_scatter(
+                        filtered_views_df,
+                        "duration_min",
+                        "views",
+                        "likes",
+                        "engagement",
+                        "Views vs Video Duration (Size by Likes, Color by Engagement)"
+                    )
+                    st.plotly_chart(fig_scatter, use_container_width=True)
+                else:
+                    st.warning("No videos match the selected filters")
+            
+            # Row 2: Views by duration and day of week
+            col_chart3, col_chart4 = st.columns(2)
+            
+            with col_chart3:
+                # Views by video duration
+                if not filtered_views_df.empty:
+                    fig_duration = create_advanced_bar_chart(
+                        filtered_views_df.groupby('duration_bin')['views'].sum().reset_index(),
+                        "duration_bin",
+                        "views",
+                        "Total Views by Video Duration"
+                    )
+                    st.plotly_chart(fig_duration, use_container_width=True)
+                else:
+                    st.warning("No videos match the selected filters")
+                
+            with col_chart4:
+                # Views by day of week
+                if not filtered_views_df.empty:
+                    fig_day = create_advanced_bar_chart(
+                        filtered_views_df.groupby('publish_day')['views'].sum().reset_index(),
+                        "publish_day",
+                        "views",
+                        "Total Views by Day of Week"
+                    )
+                    st.plotly_chart(fig_day, use_container_width=True)
                 else:
                     st.warning("No videos match the selected filters")
         
@@ -1042,9 +1053,10 @@ def youtube_dashboard():
             # Engagement Metrics Tab
             st.markdown("### Engagement Metrics Analysis")
             
-            # Filters with apply button
-            with st.expander("🔍 Filter Options", expanded=False):
-                col1, col2, col3 = st.columns([1, 1, 1])
+            # Create filter container with apply button
+            with st.container():
+                st.markdown("#### Filters")
+                col1, col2, col3 = st.columns([2, 2, 1])
                 
                 with col1:
                     min_engagement = st.slider(
@@ -1053,28 +1065,23 @@ def youtube_dashboard():
                         max_value=float(video_df["engagement"].max()), 
                         value=0.0,
                         step=0.5,
-                        key="eng_min_engagement"
+                        key="min_engagement"
                     )
                 
                 with col2:
                     view_filter = st.selectbox(
                         "View Range",
                         ["All", "<1K", "1K-10K", "10K-100K", "100K-1M", "1M+"],
-                        key="eng_view_filter"
+                        key="view_filter"
                     )
                 
                 with col3:
-                    st.markdown("")  # Spacer
                     st.markdown("")
-                    apply_eng_filters = st.button("Apply Filters", key="apply_eng_filters")
+                    st.markdown("")
+                    apply_engagement_filter = st.button("Apply Filters", key="apply_engagement")
             
-            # Apply filters when button is clicked
-            if 'apply_eng_filters' not in st.session_state:
-                st.session_state.apply_eng_filters = False
-            
-            if apply_eng_filters or st.session_state.apply_eng_filters:
-                st.session_state.apply_eng_filters = True
-                
+            # Apply filters only when button is clicked
+            if apply_engagement_filter:
                 filtered_eng_df = video_df[video_df["engagement"] >= min_engagement]
                 
                 if view_filter != "All":
@@ -1088,57 +1095,83 @@ def youtube_dashboard():
                         filtered_eng_df = filtered_eng_df[(filtered_eng_df["views"] >= 100000) & (filtered_eng_df["views"] < 1000000)]
                     else:  # 1M+
                         filtered_eng_df = filtered_eng_df[filtered_eng_df["views"] >= 1000000]
-                
-                # Display filtered results
+            else:
+                filtered_eng_df = video_df
+            
+            # Display filtered data count
+            st.markdown(f"Showing {len(filtered_eng_df)} videos matching your criteria")
+            
+            # Row 1: Engagement vs Duration and Likes vs Comments
+            col_chart5, col_chart6 = st.columns(2)
+            
+            with col_chart5:
+                # Engagement vs Duration bubble chart
                 if not filtered_eng_df.empty:
-                    # Row 1: Engagement trends and scatter
-                    col_chart5, col_chart6 = st.columns(2)
-                    
-                    with col_chart5:
-                        st.markdown("#### Engagement Rate Over Time")
-                        fig_eng_time = create_advanced_time_chart(
-                            filtered_eng_df.sort_values("published_at"),
-                            "published_at",
-                            "engagement",
-                            "Engagement Rate Trend"
-                        )
-                        st.plotly_chart(fig_eng_time, use_container_width=True)
-                    
-                    with col_chart6:
-                        st.markdown("#### Likes vs Comments Analysis")
-                        fig_likes_comments = create_advanced_scatter(
-                            filtered_eng_df,
-                            "likes",
-                            "comments",
-                            "views",
-                            "engagement",
-                            "Likes vs Comments (Size by Views, Color by Engagement)"
-                        )
-                        st.plotly_chart(fig_likes_comments, use_container_width=True)
-                    
-                    # Row 2: Distribution and performance by duration
-                    col_chart7, col_chart8 = st.columns(2)
-                    
-                    with col_chart7:
-                        st.markdown("#### Engagement Rate Distribution")
-                        fig_eng_dist = create_advanced_histogram(
-                            filtered_eng_df,
-                            "engagement",
-                            "Engagement Rate Distribution",
-                            nbins=20
-                        )
-                        st.plotly_chart(fig_eng_dist, use_container_width=True)
-                    
-                    with col_chart8:
-                        st.markdown("#### Engagement by Video Duration")
-                        duration_eng_df = filtered_eng_df.groupby('duration_bin')['engagement'].mean().reset_index()
-                        fig_duration_eng = create_advanced_bar_chart(
-                            duration_eng_df,
-                            "duration_bin",
-                            "engagement",
-                            "Average Engagement by Video Duration"
-                        )
-                        st.plotly_chart(fig_duration_eng, use_container_width=True)
+                    fig_engagement = create_advanced_scatter(
+                        filtered_eng_df,
+                        "duration_min",
+                        "engagement",
+                        "views",
+                        "likes",
+                        "Engagement Rate vs Video Duration (Size by Views, Color by Likes)"
+                    )
+                    st.plotly_chart(fig_engagement, use_container_width=True)
+                else:
+                    st.warning("No videos match the selected filters")
+                
+            with col_chart6:
+                # Likes vs Comments scatter plot
+                if not filtered_eng_df.empty:
+                    fig_likes_comments = create_advanced_scatter(
+                        filtered_eng_df,
+                        "likes",
+                        "comments",
+                        "views",
+                        "engagement",
+                        "Likes vs Comments (Size by Views, Color by Engagement)"
+                    )
+                    st.plotly_chart(fig_likes_comments, use_container_width=True)
+                else:
+                    st.warning("No videos match the selected filters")
+            
+            # Row 2: Engagement trends and distribution
+            col_chart7, col_chart8 = st.columns(2)
+            
+            with col_chart7:
+                # Engagement over time
+                if not filtered_eng_df.empty:
+                    fig_eng_trend = create_advanced_time_chart(
+                        filtered_eng_df.sort_values("published_at"),
+                        "published_at",
+                        "engagement",
+                        "Engagement Rate Over Time",
+                        color="#FFA500"
+                    )
+                    st.plotly_chart(fig_eng_trend, use_container_width=True)
+                else:
+                    st.warning("No videos match the selected filters")
+                
+            with col_chart8:
+                # Engagement distribution
+                if not filtered_eng_df.empty:
+                    fig_eng_dist = px.histogram(
+                        filtered_eng_df,
+                        x="engagement",
+                        title="Engagement Rate Distribution",
+                        color_discrete_sequence=["#FF4B4B"],
+                        labels={"engagement": "Engagement Rate (%)"},
+                        nbins=20
+                    )
+                    fig_eng_dist.update_layout(
+                        plot_bgcolor="#1A1D24",
+                        paper_bgcolor="#0E1117",
+                        font={"color": "white"},
+                        hovermode="closest",
+                        height=500,
+                        xaxis=dict(title="Engagement Rate (%)"),
+                        yaxis=dict(title="Number of Videos")
+                    )
+                    st.plotly_chart(fig_eng_dist, use_container_width=True)
                 else:
                     st.warning("No videos match the selected filters")
         
@@ -1146,115 +1179,124 @@ def youtube_dashboard():
             # Earnings & Growth Tab
             st.markdown("### Earnings & Growth Analysis")
             
-            # Filters with apply button
-            with st.expander("🔍 Earnings Settings", expanded=False):
-                col1, col2, col3 = st.columns([1, 1, 1])
+            # Create filter container with apply button
+            with st.container():
+                st.markdown("#### Earnings Settings")
+                col1, col2, col3 = st.columns([2, 2, 1])
                 
                 with col1:
                     currency_option = st.selectbox(
                         "Currency",
                         ["USD", "INR", "EUR"],
-                        key="earn_currency"
+                        key="currency_option"
                     )
-                
+                    
                 with col2:
                     cpm_option = st.selectbox(
                         "CPM Range",
                         ["low", "medium", "high"],
                         format_func=lambda x: x.capitalize(),
-                        key="earn_cpm"
+                        key="cpm_option"
                     )
                 
                 with col3:
-                    st.markdown("")  # Spacer
                     st.markdown("")
-                    apply_earn_filters = st.button("Apply Filters", key="apply_earn_filters")
+                    st.markdown("")
+                    apply_earnings_filter = st.button("Apply Settings", key="apply_earnings")
             
-            # Apply filters when button is clicked
-            if 'apply_earn_filters' not in st.session_state:
-                st.session_state.apply_earn_filters = False
-            
-            if apply_earn_filters or st.session_state.apply_earn_filters:
-                st.session_state.apply_earn_filters = True
-                
-                # Recalculate earnings with selected options
+            # Recalculate earnings with selected options when button is clicked
+            if apply_earnings_filter:
                 earnings_data_filtered = calculate_earnings(filtered_videos, currency_option, cpm_option)
-                
-                # Convert monthly earnings to DataFrame
-                monthly_earnings_filtered = []
-                for month, data in earnings_data_filtered["monthly_earnings"].items():
-                    monthly_earnings_filtered.append({
-                        "month": month,
-                        "earnings": data["estimated_earnings"],
-                        "views": data["views"],
-                        "videos": data["videos"],
-                        "earnings_per_video": data["estimated_earnings"] / max(1, data["videos"])
-                    })
-                
-                earnings_df_filtered = pd.DataFrame(monthly_earnings_filtered)
-                earnings_df_filtered["month"] = pd.to_datetime(earnings_df_filtered["month"])
-                
-                # Display filtered results
+            else:
+                earnings_data_filtered = calculate_earnings(filtered_videos)
+            
+            # Convert monthly earnings to DataFrame
+            monthly_earnings_filtered = []
+            for month, data in earnings_data_filtered["monthly_earnings"].items():
+                monthly_earnings_filtered.append({
+                    "month": month,
+                    "earnings": data["estimated_earnings"],
+                    "views": data["views"],
+                    "videos": data["videos"],
+                    "earnings_per_video": data["estimated_earnings"] / max(1, data["videos"])
+                })
+            
+            earnings_df_filtered = pd.DataFrame(monthly_earnings_filtered)
+            earnings_df_filtered["month"] = pd.to_datetime(earnings_df_filtered["month"])
+            
+            # Row 1: Earnings over time and per video
+            col_chart9, col_chart10 = st.columns(2)
+            
+            with col_chart9:
+                # Monthly earnings with annotations
                 if not earnings_df_filtered.empty:
-                    # Row 1: Earnings trends
-                    col_chart9, col_chart10 = st.columns(2)
-                    
-                    with col_chart9:
-                        st.markdown(f"#### Monthly Earnings ({currency_option})")
-                        fig_earnings = create_advanced_time_chart(
-                            earnings_df_filtered,
-                            "month",
-                            "earnings",
-                            f"Monthly Earnings Trend ({currency_option})"
-                        )
-                        st.plotly_chart(fig_earnings, use_container_width=True)
-                    
-                    with col_chart10:
-                        st.markdown(f"#### Earnings per Video ({currency_option})")
-                        fig_earn_video = create_advanced_bar_chart(
-                            earnings_df_filtered,
-                            "month",
-                            "earnings_per_video",
-                            f"Earnings per Video ({currency_option})"
-                        )
-                        st.plotly_chart(fig_earn_video, use_container_width=True)
-                    
-                    # Row 2: RPM and correlation
-                    col_chart11, col_chart12 = st.columns(2)
-                    
-                    with col_chart11:
-                        st.markdown(f"#### RPM (Revenue Per Mille) Trend")
-                        earnings_df_filtered['rpm'] = (earnings_df_filtered['earnings'] / (earnings_df_filtered['views'] / 1000)).round(2)
-                        fig_rpm = create_advanced_time_chart(
-                            earnings_df_filtered,
-                            "month",
-                            "rpm",
-                            f"RPM Trend ({currency_option})"
-                        )
-                        st.plotly_chart(fig_rpm, use_container_width=True)
-                    
-                    with col_chart12:
-                        st.markdown("#### Earnings vs Views Correlation")
-                        fig_corr = create_advanced_scatter(
-                            earnings_df_filtered,
-                            "views",
-                            "earnings",
-                            "videos",
-                            "rpm",
-                            f"Earnings vs Views ({currency_option})"
-                        )
-                        st.plotly_chart(fig_corr, use_container_width=True)
+                    fig_earnings = create_advanced_time_chart(
+                        earnings_df_filtered,
+                        "month",
+                        "earnings",
+                        f"Monthly Earnings ({earnings_data_filtered['currency']})",
+                        color="#00FF00"
+                    )
+                    st.plotly_chart(fig_earnings, use_container_width=True)
                 else:
                     st.warning("No earnings data available")
+                    
+            with col_chart10:
+                # Earnings per video
+                if not earnings_df_filtered.empty:
+                    fig_earnings_video = create_advanced_bar_chart(
+                        earnings_df_filtered,
+                        "month",
+                        "earnings_per_video",
+                        f"Earnings per Video ({earnings_data_filtered['currency']})",
+                        color="#FFA500"
+                    )
+                    st.plotly_chart(fig_earnings_video, use_container_width=True)
+                else:
+                    st.warning("No earnings data available")
+            
+            # Row 2: Earnings vs Views and RPM trend
+            col_chart11, col_chart12 = st.columns(2)
+            
+            with col_chart11:
+                # Earnings vs Views scatter
+                if not earnings_df_filtered.empty:
+                    fig_earnings_views = create_advanced_scatter(
+                        earnings_df_filtered,
+                        "views",
+                        "earnings",
+                        "videos",
+                        "earnings_per_video",
+                        f"Earnings vs Views ({earnings_data_filtered['currency']})"
+                    )
+                    st.plotly_chart(fig_earnings_views, use_container_width=True)
+                else:
+                    st.warning("No earnings data available")
+                
+            with col_chart12:
+                # RPM trend over time
+                if len(earnings_df_filtered) > 1:
+                    earnings_df_filtered['rpm'] = (earnings_df_filtered['earnings'] / (earnings_df_filtered['views'] / 1000)).round(2)
+                    fig_rpm_trend = create_advanced_time_chart(
+                        earnings_df_filtered,
+                        "month",
+                        "rpm",
+                        f"RPM (Revenue Per Mille) Trend ({earnings_data_filtered['currency']})",
+                        color="#FF69B4"
+                    )
+                    st.plotly_chart(fig_rpm_trend, use_container_width=True)
+                else:
+                    st.warning("Not enough data for RPM trend analysis")
         
         st.markdown("---")
         
-        # Video Performance Table with apply button
+        # Video Performance Table
         st.subheader("🎥 Video Performance Details")
         
-        # Filters with apply button
-        with st.expander("🔍 Table Filters", expanded=False):
-            col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+        # Create filter container with apply button
+        with st.container():
+            st.markdown("#### Table Filters")
+            col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
             
             with col1:
                 table_sort = st.selectbox(
@@ -1281,18 +1323,12 @@ def youtube_dashboard():
                 )
             
             with col4:
-                st.markdown("")  # Spacer
                 st.markdown("")
-                apply_table_filters = st.button("Apply Filters", key="apply_table_filters")
+                st.markdown("")
+                apply_table_filter = st.button("Apply Filters", key="apply_table")
         
-        # Apply filters when button is clicked
-        if 'apply_table_filters' not in st.session_state:
-            st.session_state.apply_table_filters = False
-        
-        if apply_table_filters or st.session_state.apply_table_filters:
-            st.session_state.apply_table_filters = True
-            
-            # Sort table
+        # Sort table only when button is clicked
+        if apply_table_filter:
             sort_column = {
                 "Views": "views",
                 "Likes": "likes",
@@ -1302,23 +1338,25 @@ def youtube_dashboard():
             }[table_sort]
             
             ascending = table_order == "Ascending"
-            sorted_df = video_df.sort_values(by=sort_column, ascending=ascending)
-            
-            # Display table
-            st.dataframe(
-                sorted_df[["title", "published_at", "views", "likes", "comments", "engagement", "duration_formatted"]].head(table_rows),
-                column_config={
-                    "title": "Title",
-                    "published_at": st.column_config.DatetimeColumn("Published Date"),
-                    "views": st.column_config.NumberColumn("Views", format="%d"),
-                    "likes": st.column_config.NumberColumn("Likes", format="%d"),
-                    "comments": st.column_config.NumberColumn("Comments", format="%d"),
-                    "engagement": st.column_config.NumberColumn("Engagement (%)", format="%.2f"),
-                    "duration_formatted": "Duration"
-                },
-                use_container_width=True,
-                height=(min(table_rows, 10) * 35 + 35)
-            )
+            table_df = video_df.sort_values(by=sort_column, ascending=ascending)
+        else:
+            table_df = video_df.sort_values(by="views", ascending=False)
+        
+        # Display table
+        st.dataframe(
+            table_df[["title", "published_at", "views", "likes", "comments", "engagement", "duration_formatted"]].head(table_rows),
+            column_config={
+                "title": "Title",
+                "published_at": "Published Date",
+                "views": st.column_config.NumberColumn("Views", format="%d"),
+                "likes": st.column_config.NumberColumn("Likes", format="%d"),
+                "comments": st.column_config.NumberColumn("Comments", format="%d"),
+                "engagement": st.column_config.NumberColumn("Engagement (%)", format="%.2f"),
+                "duration_formatted": "Duration"
+            },
+            use_container_width=True,
+            height=(min(table_rows, 10) * 35 + 35)
+        )
 
 # Run the dashboard
 if __name__ == "__main__":
