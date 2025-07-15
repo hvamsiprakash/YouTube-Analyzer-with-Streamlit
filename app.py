@@ -10,7 +10,7 @@ from dateutil.relativedelta import relativedelta
 from streamlit.components.v1 import html
 
 # Set your YouTube Data API key here
-YOUTUBE_API_KEY = "AIzaSyD7OUR71LzrVXntYUXlSjUxv1ZCkjNYpGM"
+YOUTUBE_API_KEY = "AIzaSyCIlrR1_2EqyH-jjteHIAy25igR4oky9sY"
 
 # Initialize the YouTube Data API client
 youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
