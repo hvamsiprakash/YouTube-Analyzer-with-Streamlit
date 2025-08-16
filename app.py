@@ -34,7 +34,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- Sidebar inputs ---
+# --- Sidebar Inputs ---
 st.sidebar.title("YouTube Channel Dashboard")
 channel_id = st.sidebar.text_input("Enter Channel ID")
 competitor_id = st.sidebar.text_input("Competitor Channel ID (optional)")
@@ -61,7 +61,7 @@ def get_channel_stats(client, channel_id):
     resp = req.execute()
     if "items" in resp and len(resp["items"]) > 0:
         stats = resp["items"][0]["statistics"]
-        name = resp["items"]["snippet"]["title"]
+        name = resp["items"]["snippet"]["title"]  # <-- FIXED HERE!
         return stats, name
     return None, None
 
@@ -109,7 +109,6 @@ def get_comments(client, video_id, max_results=5):
         for i in resp.get("items", [])
     ]
 
-# --- Helper functions ---
 def show_card(label, value):
     st.markdown(f'<div class="stCard"><h3>{label}</h3><h2>{value}</h2></div>', unsafe_allow_html=True)
 
@@ -128,7 +127,6 @@ if channel_id:
         st.stop()
     v_ids, v_titles, v_dates = get_videos(yt, channel_id, max_results=50)
     v_stats, watch_times = get_video_stats(yt, v_ids)
-
     np.random.seed(1)
 
     # 1. Total Subscribers
@@ -203,7 +201,6 @@ if channel_id:
     # 12. Viewer Retention Over Time (Area)
     if "Viewer Retention Over Time" in selected:
         mins = np.arange(1, 11)
-        # Dummy retention curve
         retain = np.maximum(100-np.cumsum(np.random.poisson(7, 10)), 0)
         fig = px.area(x=mins, y=retain, labels={'x': 'Minutes', 'y': 'Retention (%)'}, title="Viewer Retention Over Time", color_discrete_sequence=["#ff0000"])
         st.plotly_chart(fig, use_container_width=True)
@@ -271,4 +268,3 @@ if channel_id:
             st.info("Competitor channel not found.")
 else:
     st.info("Enter your Channel ID in the sidebar to start.")
-
