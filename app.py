@@ -34,7 +34,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- Sidebar Inputs ---
+# --- Sidebar inputs ---
 st.sidebar.title("YouTube Channel Dashboard")
 channel_id = st.sidebar.text_input("Enter Channel ID")
 competitor_id = st.sidebar.text_input("Competitor Channel ID (optional)")
@@ -61,7 +61,7 @@ def get_channel_stats(client, channel_id):
     resp = req.execute()
     if "items" in resp and len(resp["items"]) > 0:
         stats = resp["items"][0]["statistics"]
-        name = resp["items"]["snippet"]["title"]
+        name = resp["items"][0]["snippet"]["title"]  # Fixed this line
         return stats, name
     return None, None
 
@@ -90,6 +90,7 @@ def get_video_stats(client, video_ids):
         for v in resp.get("items", []):
             stat = v["statistics"]
             duration = v["contentDetails"].get("duration", "PT4M")
+            # Parse ISO 8601 duration (e.g. PT4M23S)
             import re
             m = re.match(r'PT((\d+)M)?((\d+)S)?', duration)
             total_sec = 0
@@ -108,6 +109,7 @@ def get_comments(client, video_id, max_results=5):
         for i in resp.get("items", [])
     ]
 
+# --- Helper functions ---
 def show_card(label, value):
     st.markdown(f'<div class="stCard"><h3>{label}</h3><h2>{value}</h2></div>', unsafe_allow_html=True)
 
@@ -126,6 +128,7 @@ if channel_id:
         st.stop()
     v_ids, v_titles, v_dates = get_videos(yt, channel_id, max_results=50)
     v_stats, watch_times = get_video_stats(yt, v_ids)
+
     np.random.seed(1)
 
     # 1. Total Subscribers
@@ -142,7 +145,7 @@ if channel_id:
         st.plotly_chart(plotly_settings(fig), use_container_width=True)
     # 4. Daily Video Views
     if "Daily Video Views" in selected:
-        days = pd.date_range(date_window[0], date_window[1])
+        days = pd.date_range(date_window, date_window[1])
         views = np.random.poisson(int(stats.get("viewCount",10000))/max(1,len(days)), len(days))
         fig = px.bar(x=days, y=views, title="Daily Video Views", labels={'x': 'Date', 'y': 'Views'}, color_discrete_sequence=["#ff0000"])
         st.plotly_chart(plotly_settings(fig), use_container_width=True)
@@ -200,6 +203,7 @@ if channel_id:
     # 12. Viewer Retention Over Time (Area)
     if "Viewer Retention Over Time" in selected:
         mins = np.arange(1, 11)
+        # Dummy retention curve
         retain = np.maximum(100-np.cumsum(np.random.poisson(7, 10)), 0)
         fig = px.area(x=mins, y=retain, labels={'x': 'Minutes', 'y': 'Retention (%)'}, title="Viewer Retention Over Time", color_discrete_sequence=["#ff0000"])
         st.plotly_chart(fig, use_container_width=True)
