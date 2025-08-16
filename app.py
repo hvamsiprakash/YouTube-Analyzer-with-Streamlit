@@ -5,7 +5,7 @@ import plotly.express as px
 from datetime import datetime
 
 # --- CONFIG & THEME ---
-YOUTUBE_API_KEY = "AIzaSyAfGFCxAWBB8dLhrZXRat3SpaJbxx0cQyA" # <- PUT YOUR API KEY HERE
+YOUTUBE_API_KEY = "AIzaSyDGV_rw-styH4jKBMRr4fcX2-78jc79D3Q" # <- PUT YOUR API KEY HERE
 
 st.set_page_config(page_title="YouTube Pro Analytics", layout="wide")
 def set_youtube_theme():
