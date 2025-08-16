@@ -2,239 +2,252 @@ import streamlit as st
 import googleapiclient.discovery
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
 
-# --- CONFIG & THEME ---
-YOUTUBE_API_KEY = "AIzaSyDGV_rw-styH4jKBMRr4fcX2-78jc79D3Q" # <- PUT YOUR API KEY HERE
+# --- YOUTUBE API KEY ---
+YOUTUBE_API_KEY = "AIzaSyDGV_rw-styH4jKBMRr4fcX2-78jc79D3Q"
 
-st.set_page_config(page_title="YouTube Pro Analytics", layout="wide")
+# --- THEME ---
 def set_youtube_theme():
     st.markdown("""
     <style>
     body, .main, .reportview-container { background: #0e1117 !important; color: #fff !important; }
-    h1, h2, h3, h4, h5, .markdown-text-container { color: #fff !important; }
-    label, .stSelectbox label, .stSlider label, .stDateInput label, .stTextInput label, .stRadio label { color:white !important; }
-    .stButton>button { border:none !important; background:#ff0000 !important; color:#fff !important; font-weight:bold !important; border-radius:4px !important;}
-    .stDataFrame td, .stDataFrame th { color:#fff !important; background:#191c23 !important;}
-    .metric-card {background: #191c23 !important; color: #fff !important; border-radius:10px !important; 
-    margin-bottom:24px !important; padding:15px !important; box-shadow: 0 4px 16px rgba(0,0,0,0.27);}
+    h1, h2, h3, h4, h5 { color: #fff !important; }
+    .metric-card, .insight-card, .chart-container, .stDataFrame, .st-bb {
+        background: #191c23 !important; color: #fff !important;
+        border-radius:10px !important; margin-bottom:15px !important;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.27);  border: none !important;
+    }
+    .insight-title { color: #fff !important; font-size: 15px !important; font-weight: 700; margin-bottom:8px;}
+    .insight-value { color: #fff !important; font-size: 22px !important; font-weight:700; margin-bottom:8px;}
+    .insight-desc { color:#bbb !important; font-size:13px; margin-bottom:8px;}
+    .insight-card { margin-right:24px !important; margin-top:8px !important; display:inline-block; vertical-align:top; width:230px;}
+    .stButton>button { border:none !important; background:#ff0000 !important; color:#fff !important; font-weight:bold !important; border-radius:4px !important; }
+    label, .stSelectbox label, .stSlider label, .stDateInput label, .stTextInput label, .stRadio label, .stCheckbox label { color: #fff !important; }
+    .stDataFrame th, .stDataFrame td { color:#fff !important;}
     </style>
     """, unsafe_allow_html=True)
 set_youtube_theme()
+st.set_page_config(page_title="YouTube Pro Creator Dashboard", layout="wide")
 
-# --- UTILS ---
-def format_number(num):
-    if num is None or pd.isna(num): return "N/A"
-    if num >= 1_000_000_000: return f"{num/1_000_000_000:.1f}B"
-    elif num >= 1_000_000: return f"{num/1_000_000:.1f}M"
-    elif num >= 1_000: return f"{num/1_000:.1f}K"
-    return str(num)
+# --- FORMATTERS ---
+def format_number(val):
+    if val is None: return ""
+    if val >= 1_000_000_000: return f"{val/1_000_000_000:.1f}B"
+    if val >= 1_000_000: return f"{val/1_000_000:.1f}M"
+    if val >= 1_000: return f"{val/1_000:.1f}K"
+    return str(val)
 
-def parse_duration(duration_str):
+def parse_duration(dur):
     try:
-        if not isinstance(duration_str, str) or not duration_str.startswith("PT"): return 0
-        import re
-        match = re.match("PT((\d+)H)?((\d+)M)?((\d+)S)?", duration_str)
-        hours = int(match.group(2)) if match.group(2) else 0
-        minutes = int(match.group(4)) if match.group(4) else 0
-        seconds = int(match.group(6)) if match.group(6) else 0
-        return hours*3600 + minutes*60 + seconds
+        if not isinstance(dur, str): return 0
+        if dur.startswith('PT'):
+            dur = dur[2:]
+            h, m, s = 0,0,0
+            if 'H' in dur: h = int(dur.split('H')[0]); dur = dur.split('H')[1]
+            if 'M' in dur: m = int(dur.split('M')); dur = dur.split('M')[1]
+            if 'S' in dur: s = int(dur.split('S'))
+            return h * 3600 + m * 60 + s
+        return 0
     except: return 0
 
 def format_duration(seconds):
-    try:
-        hours = seconds // 3600
-        minutes = (seconds % 3600) // 60
-        seconds = seconds % 60
-        if hours > 0: return f"{hours}:{minutes:02d}:{seconds:02d}"
-        return f"{minutes}:{seconds:02d}"
-    except: return "N/A"
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    seconds = int(seconds % 60)
+    if hours: return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes:02d}:{seconds:02d}"
 
-@st.cache_data(ttl=3600)
+# --- API DATA (never cache UI controls) ---
+@st.cache_data(ttl=1800)
 def get_channel_data(channel_id):
-    try:
-        youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
-        res = youtube.channels().list(part="snippet,statistics", id=channel_id).execute()
-        if not res.get("items"): return {"error": "Channel not found"}
-        info = res["items"][0]
+    youtube = googleapiclient.discovery.build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+    info = youtube.channels().list(part="snippet,statistics", id=channel_id).execute()
+    if not info.get("items"):
+        return {"error":"Channel not found."}
+    ch = info["items"]
+    videos = []; next_token=None
+    for _ in range(10):
+        vd = youtube.search().list(
+            channelId=channel_id, type="video", part="id,snippet", maxResults=50, order="date", pageToken=next_token
+        ).execute()
+        ids = [i["id"]["videoId"] for i in vd.get("items",[]) if i["id"].get("videoId")]
+        if not ids: continue
+        vstat = youtube.videos().list(part="statistics,snippet,contentDetails", id=",".join(ids)).execute()
+        for v in vstat.get("items",[]):
+            sn, st, det = v.get("snippet",{}), v.get("statistics",{}), v.get("contentDetails",{})
+            videos.append({
+                "title": sn.get("title",""), "video_id": v.get("id",""), "published_at":sn.get("publishedAt",""),
+                "duration":det.get("duration",""),
+                "views":int(st.get("viewCount",0)), "likes":int(st.get("likeCount",0)), "comments":int(st.get("commentCount",0)),
+                "thumbnail": sn.get("thumbnails",{}).get("high",{}).get("url",""),
+            })
+        next_token = vd.get("nextPageToken")
+        if not next_token: break
+    for v in videos:
+        v["engagement"] = ((v["likes"]+v["comments"])/max(1,v["views"]))*100 if v["views"] else 0
+    return {
+        "basic_info":{
+            "title":ch["snippet"]["title"], "description":ch["snippet"].get("description",""),
+            "published_at":ch["snippet"].get("publishedAt",""), "country":ch["snippet"].get("country",""),
+            "thumbnail":ch["snippet"]["thumbnails"]["high"]["url"]
+        },
+        "statistics":{
+            "view_count": int(ch["statistics"].get("viewCount",0)), "subscriber_count":int(ch["statistics"].get("subscriberCount",0)),
+            "video_count":int(ch["statistics"].get("videoCount",0)),
+        },
+        "videos":sorted(videos,key=lambda x:x["views"],reverse=True)
+    }
 
-        videos, next_token = [], None
-        for i in range(7): # 7*50=350 videos
-            resp = youtube.search().list(channelId=channel_id, type="video", part="id,snippet", maxResults=50, order="date", pageToken=next_token).execute()
-            vids = [v["id"].get("videoId") for v in resp.get("items",[])]
-            if not vids: continue
-            vinfo = youtube.videos().list(id=",".join(vids), part="statistics,snippet,contentDetails").execute()
-            for vid in vinfo.get("items",[]):
-                s, sn, dtl = vid.get("statistics",{}), vid.get("snippet",{}), vid.get("contentDetails",{})
-                videos.append({
-                    "title": sn.get("title",""),
-                    "video_id": vid.get("id",""),
-                    "published_at": sn.get("publishedAt",""),
-                    "duration": dtl.get("duration"),
-                    "views": int(s.get("viewCount",0)),
-                    "likes": int(s.get("likeCount",0)),
-                    "comments": int(s.get("commentCount",0)),
-                })
-            next_token = resp.get("nextPageToken")
-            if not next_token: break
-        return {
-            "info": {
-                "title": info["snippet"]["title"],
-                "desc": info["snippet"].get("description",""),
-                "thumb": info["snippet"]["thumbnails"]["high"]["url"],
-                "country": info["snippet"].get("country",""),
-                "created": info["snippet"]["publishedAt"]
-            },
-            "stats": {
-                "views": int(info["statistics"].get("viewCount",0)),
-                "subs": int(info["statistics"].get("subscriberCount",0)),
-                "videos": int(info["statistics"].get("videoCount",0)),
-            },
-            "videos": videos
-        }
-    except Exception as e:
-        return {"error":str(e)}
+# --- SESSION STATE ---
+if "channel_id" not in st.session_state:
+    st.session_state["channel_id"] = ""
+if "data_loaded" not in st.session_state:
+    st.session_state["data_loaded"] = False
+if "data" not in st.session_state:
+    st.session_state["data"] = None
 
-# --- DASHBOARD ---
-st.title("🎬 YouTube Pro Analytics Dashboard")
-channel_id = st.text_input("Enter YouTube Channel ID", placeholder="UCX6OQ3DkcsbYNE6H8uQQuVA")
-go_btn = st.button("🚀 Analyze", use_container_width=True)
-if not go_btn or not channel_id: st.stop()
-data = get_channel_data(channel_id)
-if "error" in data:
-    st.error(f"❌ Error: {data['error']}")
-    st.stop()
-info, stats, videos = data["info"], data["stats"], data["videos"]
-if not videos:
-    st.warning("No videos found for this channel.")
-    st.stop()
-df = pd.DataFrame(videos)
-df["published_at"] = pd.to_datetime(df["published_at"], errors="coerce")
-df["duration_sec"] = df["duration"].apply(parse_duration)
-df["duration_min"] = df["duration_sec"] / 60
-df["engagement"] = ((df["likes"]+df["comments"])/df["views"]).fillna(0)*100
-df["publish_day"] = df["published_at"].dt.day_name()
-df["publish_hour"] = df["published_at"].dt.hour
+# --- HEADER ---
+st.title("🎬 YouTube Pro Creator Dashboard")
 
-# --- FILTERS ---
-with st.sidebar:
-    st.write("## Filters")
-    mind, maxd = df["published_at"].min(), df["published_at"].max()
-    dr = st.date_input("Date range", [mind.date(), maxd.date()])
-    vmin = st.slider("Min Views", 0, int(df["views"].max()), 0, 1000)
-    emin = st.slider("Min Engagement (%)", 0.0, float(df["engagement"].max()), 0.0, 0.5)
-    durbin = st.selectbox("Duration (min)", ["All", "<5", "5-10", "10-20", "20-60", "60+"])
-dff = df.copy()
-dff = dff[(dff["published_at"].dt.date >= dr[0]) & (dff["published_at"].dt.date <= dr[1])]
-dff = dff[dff["views"] >= vmin]
-dff = dff[dff["engagement"] >= emin]
-if durbin!="All":
-    if durbin=="<5": dff=dff[dff["duration_min"]<5]
-    elif durbin=="5-10": dff=dff[(dff["duration_min"]>=5)&(dff["duration_min"]<10)]
-    elif durbin=="10-20": dff=dff[(dff["duration_min"]>=10)&(dff["duration_min"]<20)]
-    elif durbin=="20-60": dff=dff[(dff["duration_min"]>=20)&(dff["duration_min"]<60)]
-    elif durbin=="60+": dff=dff[dff["duration_min"]>=60]
+if not st.session_state["data_loaded"]:
+    st.session_state["channel_id"] = st.text_input(
+        "Enter YouTube Channel ID", placeholder="UCX6OQ3DkcsbYNE6H8uQQuVA")
+    analyze_btn = st.button("🚀 Analyze")
+    if not analyze_btn:
+        st.stop()
+    if not st.session_state["channel_id"]:
+        st.warning("Please enter a channel ID.")
+        st.stop()
+    res = get_channel_data(st.session_state["channel_id"])
+    if res.get("error"):
+        st.error(res["error"])
+        st.stop()
+    st.session_state["data"] = res
+    st.session_state["data_loaded"] = True
 
-# --- CHANNEL HEADER ---
-c1, c2 = st.columns([1,3])
-with c1: st.image(info["thumb"], width=120)
-with c2:
-    st.markdown(f"### {info['title']}")
-    st.write("- Country:", info["country"])
-    st.write("- Created:", pd.to_datetime(info["created"]).strftime("%b %d, %Y"))
-    st.write("- Total Views:", format_number(stats["views"]))
-    st.write("- Subscribers:", format_number(stats["subs"]))
-    st.write("- Video Count:", stats["videos"])
-st.markdown("---")
+channel_data = st.session_state["data"]
+video_df = pd.DataFrame(channel_data["videos"])
+video_df["published_at"] = pd.to_datetime(video_df["published_at"], errors="coerce")
+video_df["duration_sec"] = video_df["duration"].apply(parse_duration)
+video_df["duration_formatted"] = video_df["duration_sec"].apply(format_duration)
+video_df["engagement"] = video_df["engagement"].round(2)
+video_df["duration_min"] = video_df["duration_sec"] / 60
 
-# --- KEY CARDS ---
-cardcols = st.columns(4)
-def card(title, value, subval=None):
-    cardcols[card.i].markdown(
-        f"<div class='metric-card'><div style='font-size:16px;font-weight:600;color:#fff'>{title}</div>"
-        f"<div style='font-size:24px;font-weight:800;color:#ff0000'>{value}</div>"
-        f"<div style='font-size:13px;color:#fff'>{subval or ''}</div></div>", unsafe_allow_html=True
-    )
-    card.i = (card.i+1)%4
-card.i = 0
-card("Total Views", format_number(dff["views"].sum()))
-card("Total Likes", format_number(dff["likes"].sum()))
-card("Total Comments", format_number(dff["comments"].sum()))
-card("Avg Engagement (%)", f"{dff['engagement'].mean():.2f}")
-card("Avg Duration", f"{dff['duration_min'].mean():.1f} min")
-card("Most Engaging Video", dff.iloc[dff["engagement"].idxmax()]["title"] if not dff.empty else "N/A")
-card("Most Viewed Video", dff.iloc[dff["views"].idxmax()]["title"] if not dff.empty else "N/A")
-if len(dff)>1: card("Upload Interval", f"{dff['published_at'].diff().dt.days.mean():.2f} days")
-card("Upload Hour", dff["publish_hour"].mode()[0] if not dff.empty else "N/A")
-card("Upload Day", dff["publish_day"].mode() if not dff.empty else "N/A")
-st.markdown("---")
+# --- SIDEBAR FILTERS (connected, persistently applied) ---
+st.sidebar.title("🔎 Filters")
+dmin, dmax = video_df["published_at"].min().date(), video_df["published_at"].max().date()
+dates = st.sidebar.date_input("Date Range", [dmin, dmax], min_value=dmin, max_value=dmax)
+min_views = st.sidebar.slider("Minimum Views", min_value=0, max_value=int(video_df["views"].max()), value=0, step=1000)
+min_likes = st.sidebar.slider("Minimum Likes", min_value=0, max_value=int(video_df["likes"].max()), value=0, step=500)
+duration_filter = st.sidebar.selectbox("Duration (min)", ["All", "<5", "5-10", "10-20", "20-60", "60+"])
+st.sidebar.caption("All filter changes instantly apply below (no reset).")
 
-# --- 15 Graphs & Tables, all in white labels, red lines/bars ---
-g1,g2 = st.columns(2)
-g1.plotly_chart(
-    px.line(dff.groupby(dff["published_at"].dt.date)["views"].sum().reset_index(),
-            x="published_at", y="views", title="Views Over Time", color_discrete_sequence=["#ff0000"])
-    .update_layout(plot_bgcolor="#191c23", paper_bgcolor="#0e1117", font_color="#fff"), use_container_width=True)
-g2.plotly_chart(
-    px.line(dff.groupby(dff["published_at"].dt.date)["likes"].sum().reset_index(),
-            x="published_at", y="likes", title="Likes Over Time", color_discrete_sequence=["#ff0000"])
-    .update_layout(plot_bgcolor="#191c23", paper_bgcolor="#0e1117", font_color="#fff"), use_container_width=True)
-g3,g4 = st.columns(2)
-g3.plotly_chart(
-    px.line(dff.groupby(dff["published_at"].dt.date)["comments"].sum().reset_index(),
-            x="published_at", y="comments", title="Comments Over Time", color_discrete_sequence=["#ff0000"])
-    .update_layout(plot_bgcolor="#191c23", paper_bgcolor="#0e1117", font_color="#fff"), use_container_width=True)
-g4.plotly_chart(
-    px.histogram(dff, x="engagement", nbins=30, title="Engagement Rate Distribution (%)", color_discrete_sequence=["#ff0000"])
-    .update_layout(plot_bgcolor="#191c23", paper_bgcolor="#0e1117", font_color="#fff"), use_container_width=True)
-g5,g6 = st.columns(2)
-g5.plotly_chart(
-    px.scatter(dff, x="views", y="likes", title="Views vs Likes", color="likes", color_continuous_scale="reds")
-    .update_layout(plot_bgcolor="#191c23", paper_bgcolor="#0e1117", font_color="#fff"), use_container_width=True)
-g6.plotly_chart(
-    px.scatter(dff, x="views", y="comments", title="Views vs Comments", color="comments", color_continuous_scale="reds")
-    .update_layout(plot_bgcolor="#191c23", paper_bgcolor="#0e1117", font_color="#fff"), use_container_width=True)
-g7,g8 = st.columns(2)
-g7.plotly_chart(
-    px.histogram(dff, x="duration_min", nbins=20, title="Video Duration Distribution (min)", color_discrete_sequence=["#ff0000"])
-    .update_layout(plot_bgcolor="#191c23", paper_bgcolor="#0e1117", font_color="#fff"), use_container_width=True)
-if len(dff)>1:
-    dff["days_since_last"] = dff["published_at"].diff().dt.days
-    g8.plotly_chart(
-        px.box(dff.dropna(), y="days_since_last", title="Interval Between Uploads (days)", color_discrete_sequence=["#ff0000"])
-        .update_layout(plot_bgcolor="#191c23", paper_bgcolor="#0e1117", font_color="#fff"), use_container_width=True)
-g9,g10 = st.columns(2)
-bins = [0,5,10,20,60,float('inf')]
-labels = ["<5m","5-10m","10-20m","20-60m","60m+"]
-dff["duration_bin"] = pd.cut(dff["duration_min"], bins=bins, labels=labels)
-g9.plotly_chart(
-    px.box(dff, x="duration_bin", y="views", title="Views by Duration Bin", color_discrete_sequence=["#ff0000"])
-    .update_layout(plot_bgcolor="#191c23", paper_bgcolor="#0e1117", font_color="#fff"), use_container_width=True)
-g10.plotly_chart(
-    px.box(dff, x="duration_bin", y="likes", title="Likes by Duration Bin", color_discrete_sequence=["#ff0000"])
-    .update_layout(plot_bgcolor="#191c23", paper_bgcolor="#0e1117", font_color="#fff"), use_container_width=True)
-g11,g12 = st.columns(2)
-g11.plotly_chart(
-    px.box(dff, x="duration_bin", y="comments", title="Comments by Duration Bin", color_discrete_sequence=["#ff0000"])
-    .update_layout(plot_bgcolor="#191c23", paper_bgcolor="#0e1117", font_color="#fff"), use_container_width=True)
-hours_data = dff.groupby("publish_hour").size().reset_index(name="count")
-g12.plotly_chart(
-    px.bar(hours_data, x="publish_hour", y="count", title="Popular Upload Hours", color_discrete_sequence=["#ff0000"])
-    .update_layout(plot_bgcolor="#191c23", paper_bgcolor="#0e1117", font_color="#fff"), use_container_width=True)
-g13,g14 = st.columns(2)
-days_order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-days_data = dff.groupby("publish_day").size().reindex(days_order, fill_value=0).reset_index(name="count").rename(columns={"index":"publish_day"})
-g13.plotly_chart(
-    px.bar(days_data, x="publish_day", y="count", title="Popular Upload Days", color_discrete_sequence=["#ff0000"])
-    .update_layout(plot_bgcolor="#191c23", paper_bgcolor="#0e1117", font_color="#fff"), use_container_width=True)
-# --- Tables ---
-st.markdown("### Most Viewed Videos")
-st.dataframe(
-    dff.nlargest(10, "views")[["title", "views", "likes", "comments", "engagement", "duration_min"]],
-    use_container_width=True
-)
-st.markdown("### Most Engaging Videos")
-st.dataframe(
-    dff.nlargest(10, "engagement")[["title", "views", "likes", "comments", "engagement", "duration_min"]],
-    use_container_width=True
-)
+dff = video_df.copy()
+dff = dff[(dff["published_at"].dt.date >= dates[0]) & (dff["published_at"].dt.date <= dates[1])]
+dff = dff[dff["views"] >= min_views]
+dff = dff[dff["likes"] >= min_likes]
+if duration_filter != "All":
+    if duration_filter == "<5": dff = dff[dff["duration_min"]<5]
+    elif duration_filter == "5-10": dff = dff[(dff["duration_min"]>=5)&(dff["duration_min"]<10)]
+    elif duration_filter == "10-20": dff = dff[(dff["duration_min"]>=10)&(dff["duration_min"]<20)]
+    elif duration_filter == "20-60": dff = dff[(dff["duration_min"]>=20)&(dff["duration_min"]<60)]
+    elif duration_filter == "60+": dff = dff[dff["duration_min"]>=60]
+
+# --- KEY INSIGHTS (spaced, white, dynamic, actionable) ---
+st.markdown("## Key Insights")
+insights = [
+    {"title":"Total Views", "value":format_number(dff["views"].sum()), "desc":"Sum of all views for filtered videos."},
+    {"title":"Subscribers", "value":format_number(channel_data["statistics"]["subscriber_count"]), "desc":"Current subscriber count."},
+    {"title":"Total Likes", "value":format_number(dff["likes"].sum()), "desc":"Sum of likes."},
+    {"title":"Total Comments", "value":format_number(dff["comments"].sum()), "desc":"Sum of comments."},
+    {"title":"Avg Views/Video", "value":f"{dff['views'].mean():,.0f}", "desc":"Average views per video."},
+    {"title":"Avg Likes/Video", "value":f"{dff['likes'].mean():,.0f}", "desc":"Average likes per video."},
+    {"title":"Avg Comments/Video", "value":f"{dff['comments'].mean():,.0f}", "desc":"Average comments per video."},
+    {"title":"Avg Engagement (%)", "value":f"{dff['engagement'].mean():.2f}", "desc":"Engagement: (likes+comments)/views."},
+    {"title":"Upload Frequency (days)", "value":f"{dff['published_at'].diff().dt.days.mean():.1f}", "desc":"Mean days between uploads."},
+    {"title":"Total Videos", "value":format_number(len(dff)), "desc":"Number of videos in filter."},
+    {"title":"Longest Video", "value":f"{dff.sort_values('duration_sec',ascending=False)['duration_formatted'].iloc[0]}", "desc":dff.sort_values("duration_sec",ascending=False)["title"].iloc if not dff.empty else ""},
+    {"title":"Shortest Video", "value":f"{dff.sort_values('duration_sec',ascending=True)['duration_formatted'].iloc}", "desc":dff.sort_values("duration_sec",ascending=True)["title"].iloc if not dff.empty else ""},
+    {"title":"Top Engagement Video", "value":dff.loc[dff['engagement'].idxmax()]['title'][:32] if not dff.empty else "", "desc":"Highest engagement %."},
+    {"title":"Most Viewed Video", "value":dff.loc[dff['views'].idxmax()]['title'][:32] if not dff.empty else "", "desc":"Highest views."},
+    {"title":"Most Recent Video", "value":dff.sort_values('published_at',ascending=False)['title'].iloc[:32] if not dff.empty else "", "desc":"Latest post."},
+]
+for row_start in range(0, len(insights), 4):
+    cols = st.columns(4)
+    for i, card in enumerate(insights[row_start:row_start+4]):
+        with cols[i]:
+            st.markdown(f"""
+            <div class='insight-card'>
+                <div class='insight-title'>{card['title']}</div>
+                <div class='insight-value'>{card['value']}</div>
+                <div class='insight-desc'>{card['desc']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+st.markdown('<br>', unsafe_allow_html=True)
+
+# --- CHANNEL HEADER (white, left-aligned) ---
+st.markdown(f"""
+<div style='background:#191c23; border-radius:10px; padding:15px; margin-bottom:14px; color:#fff;'>
+    <img src="{channel_data['basic_info']['thumbnail']}" width="85" style="float:left; margin-right:18px; border-radius:8px;">
+    <span style="font-size:22px; font-weight:bold;">{channel_data['basic_info']['title']}</span><br>
+    <span style="font-size:14px;">{channel_data['basic_info']['description']}</span><br>
+    <span style="font-size:13px;">Country: {channel_data['basic_info']['country']}</span> ·
+    <span style="font-size:13px;">Channel ID: {st.session_state['channel_id']}</span> ·
+    <span style="font-size:13px;">Created: {pd.to_datetime(channel_data['basic_info']['published_at']).strftime('%b %d, %Y')}</span>
+</div>
+""", unsafe_allow_html=True)
+
+# --- 15 UNIQUE GRAPHS/TABLES: ALL ACTIONABLE/WHITE LABELS, CHARTS IN RED ----
+st.markdown("## Channel Analytics")
+
+graph_sections = [
+    ("Monthly Views Trend", px.area(dff.groupby(dff["published_at"].dt.strftime("%Y-%m"))["views"].sum().reset_index(),
+        x="published_at", y="views", title="Monthly Views Trend", color_discrete_sequence=["#ff0000"])),
+    ("Monthly Uploads", px.bar(dff.groupby(dff["published_at"].dt.strftime("%Y-%m")).size().reset_index(name="uploads"),
+        x="published_at", y="uploads", title="Monthly Uploads", color_discrete_sequence=["#ff0000"])),
+    ("Engagement Rate Distribution", px.histogram(dff, x="engagement", nbins=20, title="Engagement Rate (%)", color_discrete_sequence=["#ff0000"])),
+    ("Views Distribution", px.histogram(dff, x="views", nbins=20, title="Views Distribution", color_discrete_sequence=["#ff0000"])),
+    ("Likes vs Comments", px.scatter(dff, x="likes", y="comments", title="Likes vs Comments", color="views", color_continuous_scale="reds")),
+    ("Views by Duration", px.box(dff, x=pd.cut(dff["duration_min"], bins=[0,5,10,20,60,120],labels=["<5","5-10","10-20","20-60","60+"]),
+        y="views", title="Views by Video Duration", color_discrete_sequence=["#ff0000"])),
+    ("Views By Day of Week", px.bar(dff.groupby(dff["published_at"].dt.day_name())["views"].sum().reset_index(),
+        x="published_at", y="views", title="Views By Day", color_discrete_sequence=["#ff0000"])),
+    ("Likes Heatmap", px.density_heatmap(dff, x="published_at", y="likes", title="Likes Over Time", color_continuous_scale="reds")),
+    ("Comments Heatmap", px.density_heatmap(dff, x="published_at", y="comments", title="Comments Over Time", color_continuous_scale="reds")),
+    ("Engagement Over Time", px.line(dff.groupby(dff["published_at"].dt.strftime("%Y-%m"))["engagement"].mean().reset_index(),
+        x="published_at", y="engagement", title="Engagement Over Months", color_discrete_sequence=["#ff0000"])),
+    ("Avg Duration Over Time", px.line(dff.groupby(dff["published_at"].dt.strftime("%Y-%m"))["duration_min"].mean().reset_index(),
+        x="published_at", y="duration_min", title="Avg Duration Over Months", color_discrete_sequence=["#ff0000"])),
+    ("Views Growth (Cumulative)", px.line(dff.sort_values("published_at").assign(cumu_views=dff.sort_values("published_at")["views"].cumsum()),
+        x="published_at", y="cumu_views", title="Cumulative Views Growth", color_discrete_sequence=["#ff0000"])),
+    ("Top 10 Videos Table", None), # Will do table below.
+    ("Low Engagement Videos Table", None),
+    ("Comments per Like Ratio", px.scatter(dff, x="likes", y="comments", size="views", color="engagement",
+        title="Comments per Like, Sized by Views", color_continuous_scale="reds"))
+]
+
+for i in range(0, len(graph_sections)-2,2):
+    cols = st.columns(2)
+    # Left
+    name, fig = graph_sections[i]
+    if fig is not None:
+        cols[0].plotly_chart(fig.update_layout(
+            plot_bgcolor="#191c23", paper_bgcolor="#0e1117", font_color="#fff",
+            title=dict(text=name, font=dict(color="#fff",size=19)), margin=dict(t=45,b=30)), use_container_width=True)
+    # Right
+    name2, fig2 = graph_sections[i+1]
+    if fig2 is not None:
+        cols[1].plotly_chart(fig2.update_layout(
+            plot_bgcolor="#191c23", paper_bgcolor="#0e1117", font_color="#fff",
+            title=dict(text=name2, font=dict(color="#fff",size=19)), margin=dict(t=45,b=30)), use_container_width=True)
+
+# --- TABLES ---
+st.markdown("### Top 10 Videos (by Views)")
+top10 = dff.sort_values('views',ascending=False).head(10)[["title","published_at","views","likes","comments","engagement"]]
+st.dataframe(top10,use_container_width=True)
+
+st.markdown("### 10 Videos with Lowest Engagement (%)")
+low_engage = dff.sort_values('engagement',ascending=True).head(10)[["title","published_at","views","likes","comments","engagement"]]
+st.dataframe(low_engage,use_container_width=True)
