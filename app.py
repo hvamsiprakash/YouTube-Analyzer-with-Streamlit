@@ -61,7 +61,7 @@ def get_channel_stats(client, channel_id):
     resp = req.execute()
     if "items" in resp and len(resp["items"]) > 0:
         stats = resp["items"][0]["statistics"]
-        name = resp["items"]["snippet"]["title"]  # <-- FIXED HERE!
+        name = resp["items"]["snippet"]["title"]
         return stats, name
     return None, None
 
@@ -90,7 +90,6 @@ def get_video_stats(client, video_ids):
         for v in resp.get("items", []):
             stat = v["statistics"]
             duration = v["contentDetails"].get("duration", "PT4M")
-            # Parse ISO 8601 duration (e.g. PT4M23S)
             import re
             m = re.match(r'PT((\d+)M)?((\d+)S)?', duration)
             total_sec = 0
@@ -143,7 +142,7 @@ if channel_id:
         st.plotly_chart(plotly_settings(fig), use_container_width=True)
     # 4. Daily Video Views
     if "Daily Video Views" in selected:
-        days = pd.date_range(date_window, date_window[1])
+        days = pd.date_range(date_window[0], date_window[1])
         views = np.random.poisson(int(stats.get("viewCount",10000))/max(1,len(days)), len(days))
         fig = px.bar(x=days, y=views, title="Daily Video Views", labels={'x': 'Date', 'y': 'Views'}, color_discrete_sequence=["#ff0000"])
         st.plotly_chart(plotly_settings(fig), use_container_width=True)
