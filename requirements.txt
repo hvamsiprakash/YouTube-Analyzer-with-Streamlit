@@ -1,5 +1,7 @@
 streamlit
 google-api-python-client
+google-auth
 pandas
 plotly
-python-dateutil
+calmap
+numpy
