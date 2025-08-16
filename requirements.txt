@@ -3,5 +3,6 @@ google-api-python-client
 google-auth
 pandas
 plotly
-calmap
 numpy
+matplotlib
+calmap
