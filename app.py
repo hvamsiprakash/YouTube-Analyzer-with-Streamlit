@@ -148,14 +148,12 @@ if channel_id:
         df_vid["PublishedDate"] = pd.to_datetime(df_vid["PublishedAt"])
         df_vid["Month"] = df_vid["PublishedDate"].dt.strftime("%Y-%m")
         df_vid["DayOfWeek"] = df_vid["PublishedDate"].dt.day_name()
-        # Real YouTube categories for best experience
         category_map = {
             "1": "Film", "2": "Autos", "10": "Music", "17": "Sports", "20": "Gaming", "23": "Comedy",
             "24": "Entertainment", "25": "News", "26": "Howto", "27": "Education", "28": "Science"
         }
         df_vid["Category"] = df_vid["CategoryId"].map(lambda x: category_map.get(x, "Other"))
 
-        # Layout
         st.markdown(f"# Insights for: **{channel['snippet']['title']}**")
         overview_cols = st.columns(3)
         if "Channel Card" in selected_insights:
@@ -164,13 +162,13 @@ if channel_id:
             with overview_cols[1]:
                 st.metric("Subscribers", f"{int(channel['statistics']['subscriberCount']):,}")
                 st.metric("Total Views", f"{int(channel['statistics']['viewCount']):,}")
-            with overview_cols:  # Fixed! Use specific column, not the list
+            with overview_cols:  # Corrected here: use specific column, NOT list
                 st.metric("Total Videos", f"{int(channel['statistics']['videoCount']):,}")
             st.markdown(f"**Channel Description:** {channel['snippet'].get('description','No description')}")
 
         metric_cols = st.columns(3)
         if "Subscribers Count" in selected_insights:
-            with metric_cols:
+            with metric_cols[0]:
                 st.metric("Subscribers", f"{int(channel['statistics']['subscriberCount']):,}")
         if "Total Views" in selected_insights:
             with metric_cols[1]:
@@ -180,7 +178,6 @@ if channel_id:
                 st.metric("Total Videos", f"{int(channel['statistics']['videoCount']):,}")
 
         if not df_vid.empty:
-            # Professional Graphs & Tables
             if "Most Viewed Videos" in selected_insights:
                 mv_col1, mv_col2 = st.columns([2,1])
                 with mv_col1:
