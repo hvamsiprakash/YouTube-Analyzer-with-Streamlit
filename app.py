@@ -52,6 +52,16 @@ date_window = st.sidebar.date_input(
     [datetime.date.today() - datetime.timedelta(days=30), datetime.date.today()]
 )
 
+# --- Utility for date extraction ---
+def get_date_window(window):
+    # Always returns two dates: start, end
+    if isinstance(window, list) and len(window) == 2:
+        return pd.to_datetime(window[0]), pd.to_datetime(window[1])
+    today = pd.to_datetime(datetime.date.today())
+    return today - pd.Timedelta(days=30), today
+
+date_start, date_end = get_date_window(date_window)
+
 # --- YouTube API Wrappers ---
 def get_yt_client():
     return build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
@@ -61,7 +71,7 @@ def get_channel_stats(client, channel_id):
     resp = req.execute()
     if "items" in resp and len(resp["items"]) > 0:
         stats = resp["items"][0]["statistics"]
-        name = resp["items"][0]["snippet"]["title"]  # Fixed this line
+        name = resp["items"]["snippet"]["title"]
         return stats, name
     return None, None
 
@@ -109,7 +119,6 @@ def get_comments(client, video_id, max_results=5):
         for i in resp.get("items", [])
     ]
 
-# --- Helper functions ---
 def show_card(label, value):
     st.markdown(f'<div class="stCard"><h3>{label}</h3><h2>{value}</h2></div>', unsafe_allow_html=True)
 
@@ -128,7 +137,6 @@ if channel_id:
         st.stop()
     v_ids, v_titles, v_dates = get_videos(yt, channel_id, max_results=50)
     v_stats, watch_times = get_video_stats(yt, v_ids)
-
     np.random.seed(1)
 
     # 1. Total Subscribers
@@ -139,13 +147,13 @@ if channel_id:
         show_card("Total Views", stats.get("viewCount", "N/A"))
     # 3. Subscriber Growth Trend
     if "Subscriber Growth Trend" in selected:
-        days = pd.date_range(date_window[0], date_window[1])
+        days = pd.date_range(date_start, date_end)
         subs = np.linspace(int(stats.get("subscriberCount",1000))*0.9, int(stats.get("subscriberCount",1000)), len(days))
         fig = px.line(x=days, y=subs, title="Subscriber Growth Trend", labels={'x': 'Date', 'y': 'Subscribers'}, color_discrete_sequence=["#ff0000"])
         st.plotly_chart(plotly_settings(fig), use_container_width=True)
     # 4. Daily Video Views
     if "Daily Video Views" in selected:
-        days = pd.date_range(date_window, date_window[1])
+        days = pd.date_range(date_start, date_end)
         views = np.random.poisson(int(stats.get("viewCount",10000))/max(1,len(days)), len(days))
         fig = px.bar(x=days, y=views, title="Daily Video Views", labels={'x': 'Date', 'y': 'Views'}, color_discrete_sequence=["#ff0000"])
         st.plotly_chart(plotly_settings(fig), use_container_width=True)
@@ -203,7 +211,6 @@ if channel_id:
     # 12. Viewer Retention Over Time (Area)
     if "Viewer Retention Over Time" in selected:
         mins = np.arange(1, 11)
-        # Dummy retention curve
         retain = np.maximum(100-np.cumsum(np.random.poisson(7, 10)), 0)
         fig = px.area(x=mins, y=retain, labels={'x': 'Minutes', 'y': 'Retention (%)'}, title="Viewer Retention Over Time", color_discrete_sequence=["#ff0000"])
         st.plotly_chart(fig, use_container_width=True)
@@ -241,7 +248,7 @@ if channel_id:
         st.plotly_chart(fig, use_container_width=True)
     # 18. Subscriber Gain/Loss Events (Stem Plot)
     if "Subscriber Gain/Loss Events" in selected:
-        dates = pd.date_range(date_window[0], date_window[1])
+        dates = pd.date_range(date_start, date_end)
         gain = np.random.randint(1, 30, len(dates))
         loss = np.random.randint(1, 15, len(dates))
         fig = px.scatter(x=dates, y=gain-loss, title="Subscriber Net Gain/Loss", labels={'y': 'Net Change'}, color_discrete_sequence=["#ff0000"])
