@@ -6,6 +6,7 @@ from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import numpy as np
 from io import BytesIO
+import isodate
 
 API_KEY = "AIzaSyDz8r5kvSnlkdQTyeEMS4hn0EMpXfUV1ig"
 
@@ -16,7 +17,7 @@ st.set_page_config(
     page_icon="🎥"
 )
 
-# --- Themes ---
+# --- Theme ---
 st.markdown("""
     <style>
     body { background-color: #111; color: #fff; }
@@ -32,7 +33,6 @@ st.markdown("""
 st.sidebar.title("YouTube Insights Dashboard")
 channel_id = st.sidebar.text_input("Enter your Channel ID", help="Paste your YouTube Channel ID here.")
 
-# Insights options
 insights_choices = [
     "Channel Overview",
     "Subscribers Count",
@@ -58,7 +58,6 @@ insights_choices = [
 selected_insights = st.sidebar.multiselect(
     "Select insights to display (up to 20)", options=insights_choices, default=insights_choices)
 
-# Build YouTube API client
 def get_youtube_client():
     yt = build("youtube", "v3", developerKey=API_KEY)
     return yt
@@ -124,7 +123,6 @@ def fetch_playlists(channel_id):
     return res["items"]
 
 def parse_duration(duration):
-    import isodate
     try:
         td = isodate.parse_duration(duration)
         return td.total_seconds() / 60  # minutes
@@ -132,159 +130,146 @@ def parse_duration(duration):
         return 0
 
 if channel_id:
-    channel = fetch_channel_data(channel_id)
-    uploads_id = channel["contentDetails"]["relatedPlaylists"]["uploads"]
-    video_ids = fetch_video_ids(uploads_id, max_results=100)
-    df_vid = fetch_videos_stats(video_ids)
-    playlists = fetch_playlists(channel_id)
-    category_map = {"1": "Film", "10": "Music", "20": "Gaming", "22": "Blogs", "23": "Comedy", "24": "Entertainment"}  # Simplified example
+    try:
+        channel = fetch_channel_data(channel_id)
+        uploads_id = channel["contentDetails"]["relatedPlaylists"]["uploads"]
+        video_ids = fetch_video_ids(uploads_id, max_results=100)
+        df_vid = fetch_videos_stats(video_ids)
+        playlists = fetch_playlists(channel_id)
+        category_map = {
+            "1": "Film", "10": "Music", "20": "Gaming", "22": "Blogs", "23": "Comedy", "24": "Entertainment"
+        }  # Example
 
-    # Duration in minutes:
-    df_vid["DurationMin"] = df_vid["Duration"].map(parse_duration)
-    df_vid["PublishDate"] = pd.to_datetime(df_vid["PublishedAt"])
-    df_vid["PublishMonth"] = df_vid["PublishDate"].dt.to_period("M")
-    df_vid["PublishDOW"] = df_vid["PublishDate"].dt.day_name()
-    df_vid["Category"] = df_vid["CategoryId"].map(lambda x: category_map.get(x, "Other"))
-    
-    # 1. Channel Overview
-    if "Channel Overview" in selected_insights:
-        st.markdown("## Channel Overview")
-        st.image(channel["snippet"]["thumbnails"]["default"]["url"], width=80)
-        st.markdown(f"### {channel['snippet']['title']}")
-        st.caption(channel['snippet'].get('description', ''))
+        df_vid["DurationMin"] = df_vid["Duration"].map(parse_duration)
+        df_vid["PublishDate"] = pd.to_datetime(df_vid["PublishedAt"])
+        df_vid["PublishMonth"] = df_vid["PublishDate"].dt.to_period("M").astype(str)  # FIXED: Convert to str
+        df_vid["PublishDOW"] = df_vid["PublishDate"].dt.day_name()
+        df_vid["Category"] = df_vid["CategoryId"].map(lambda x: category_map.get(x, "Other"))
 
-    # 2. Subscribers Count
-    if "Subscribers Count" in selected_insights:
-        st.metric("Subscribers", f"{channel['statistics']['subscriberCount']}")
+        if "Channel Overview" in selected_insights:
+            st.markdown("## Channel Overview")
+            st.image(channel["snippet"]["thumbnails"]["default"]["url"], width=80)
+            st.markdown(f"### {channel['snippet']['title']}")
+            st.caption(channel['snippet'].get('description', ''))
 
-    # 3. Total Views
-    if "Total Views" in selected_insights:
-        st.metric("Total Views", f"{channel['statistics']['viewCount']}")
+        if "Subscribers Count" in selected_insights:
+            st.metric("Subscribers", f"{channel['statistics']['subscriberCount']}")
 
-    # 4. Total Videos Uploaded
-    if "Total Videos Uploaded" in selected_insights:
-        st.metric("Total Videos", f"{channel['statistics']['videoCount']}")
+        if "Total Views" in selected_insights:
+            st.metric("Total Views", f"{channel['statistics']['viewCount']}")
 
-    # 5. Top 5 Most Viewed Videos
-    if "Top 5 Most Viewed Videos" in selected_insights:
-        st.markdown("#### Top 5 Most Viewed Videos")
-        top_views = df_vid.sort_values("Views", ascending=False).head(5)[["Title", "Views"]]
-        st.table(top_views)
+        if "Total Videos Uploaded" in selected_insights:
+            st.metric("Total Videos", f"{channel['statistics']['videoCount']}")
 
-    # 6. Top 5 Most Liked Videos
-    if "Top 5 Most Liked Videos" in selected_insights:
-        st.markdown("#### Top 5 Most Liked Videos")
-        top_likes = df_vid.sort_values("Likes", ascending=False).head(5)[["Title", "Likes"]]
-        st.table(top_likes)
+        if "Top 5 Most Viewed Videos" in selected_insights:
+            st.markdown("#### Top 5 Most Viewed Videos")
+            top_views = df_vid.sort_values("Views", ascending=False).head(5)[["Title", "Views"]]
+            st.table(top_views)
 
-    # 7. Subscriber Growth (Line chart, simulated)
-    if "Subscriber Growth" in selected_insights:
-        st.markdown("#### Subscriber Growth (Simulated)")
-        # YouTube API v3 cannot fetch historic subscriber count. Simulate for demo:
-        growth = np.linspace(
-            int(channel['statistics']['subscriberCount']) * 0.5,
-            int(channel['statistics']['subscriberCount']),
-            num=12
-        )
-        fig = px.line(y=growth, x=[f"{i+1} mo ago" for i in range(12)],
-                      title="Subscriber Growth", color_discrete_sequence=["red"])
-        st.plotly_chart(fig, use_container_width=True)
+        if "Top 5 Most Liked Videos" in selected_insights:
+            st.markdown("#### Top 5 Most Liked Videos")
+            top_likes = df_vid.sort_values("Likes", ascending=False).head(5)[["Title", "Likes"]]
+            st.table(top_likes)
 
-    # 8. Upload Frequency Over Time
-    if "Upload Frequency Over Time" in selected_insights:
-        st.markdown("#### Upload Frequency")
-        up_freq = df_vid.groupby("PublishMonth").size().reset_index(name="Uploads")
-        fig = px.bar(up_freq, x="PublishMonth", y="Uploads", title="Uploads per Month", color_discrete_sequence=["red"])
-        st.plotly_chart(fig, use_container_width=True)
+        if "Subscriber Growth" in selected_insights:
+            st.markdown("#### Subscriber Growth (Simulated)")
+            growth = np.linspace(
+                int(channel['statistics']['subscriberCount']) * 0.5,
+                int(channel['statistics']['subscriberCount']),
+                num=12
+            )
+            fig = px.line(
+                y=growth,
+                x=[f"{i+1} mo ago" for i in range(12)],
+                title="Subscriber Growth",
+                color_discrete_sequence=["red"]
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-    # 9. Views Trend Over Last 12 Months
-    if "Views Trend Over Last 12 Months" in selected_insights:
-        st.markdown("#### Views Trend")
-        trend = df_vid.groupby("PublishMonth")["Views"].sum().reset_index()
-        fig = px.line(trend, x="PublishMonth", y="Views", title="Views Trend", color_discrete_sequence=["red"])
-        st.plotly_chart(fig, use_container_width=True)
+        if "Upload Frequency Over Time" in selected_insights:
+            st.markdown("#### Upload Frequency")
+            up_freq = df_vid.groupby("PublishMonth").size().reset_index(name="Uploads")
+            fig = px.bar(up_freq, x="PublishMonth", y="Uploads", title="Uploads per Month", color_discrete_sequence=["red"])
+            st.plotly_chart(fig, use_container_width=True)
 
-    # 10. Likes Trend Over Last 12 Months
-    if "Likes Trend Over Last 12 Months" in selected_insights:
-        st.markdown("#### Likes Trend")
-        likes = df_vid.groupby("PublishMonth")["Likes"].sum().reset_index()
-        fig = px.line(likes, x="PublishMonth", y="Likes", title="Likes Trend", color_discrete_sequence=["red"])
-        st.plotly_chart(fig, use_container_width=True)
+        if "Views Trend Over Last 12 Months" in selected_insights:
+            st.markdown("#### Views Trend")
+            trend = df_vid.groupby("PublishMonth")["Views"].sum().reset_index()
+            fig = px.line(trend, x="PublishMonth", y="Views", title="Views Trend", color_discrete_sequence=["red"])
+            st.plotly_chart(fig, use_container_width=True)
 
-    # 11. Average Comments per Video
-    if "Average Comments per Video" in selected_insights:
-        avg_comments = df_vid["Comments"].mean()
-        st.metric("Avg Comments/Video", f"{avg_comments:.1f}")
+        if "Likes Trend Over Last 12 Months" in selected_insights:
+            st.markdown("#### Likes Trend")
+            likes = df_vid.groupby("PublishMonth")["Likes"].sum().reset_index()
+            fig = px.line(likes, x="PublishMonth", y="Likes", title="Likes Trend", color_discrete_sequence=["red"])
+            st.plotly_chart(fig, use_container_width=True)
 
-    # 12. Top Categories Pie Chart
-    if "Top Video Categories" in selected_insights:
-        st.markdown("#### Top Video Categories")
-        categories = df_vid["Category"].value_counts().reset_index()
-        fig = px.pie(categories, names="index", values="Category", color_discrete_sequence=["red", "darkred"])
-        st.plotly_chart(fig, use_container_width=True)
+        if "Average Comments per Video" in selected_insights:
+            avg_comments = df_vid["Comments"].mean()
+            st.metric("Avg Comments/Video", f"{avg_comments:.1f}")
 
-    # 13. Video Tags Wordcloud
-    if "Video Tags Wordcloud" in selected_insights:
-        st.markdown("#### Video Tags Wordcloud")
-        tags = [tag for sublist in df_vid["Tags"].dropna() for tag in sublist]
-        if tags:
-            cloud = WordCloud(width=600, height=400, background_color="black", colormap="Reds").generate(" ".join(tags))
-            buf = BytesIO()
-            plt.figure(figsize=(6, 4))
-            plt.imshow(cloud, interpolation="bilinear")
-            plt.axis("off")
-            plt.savefig(buf, format='png')
-            st.image(buf)
-        else:
-            st.caption("No tags to show.")
+        if "Top Video Categories" in selected_insights:
+            st.markdown("#### Top Video Categories")
+            categories = df_vid["Category"].value_counts().reset_index()
+            fig = px.pie(categories, names="index", values="Category", color_discrete_sequence=["red", "darkred"])
+            st.plotly_chart(fig, use_container_width=True)
 
-    # 14. Upload Day of Week Distribution (Heatmap)
-    if "Upload Day of Week Distribution" in selected_insights:
-        st.markdown("#### Upload Day of Week Heatmap")
-        heat_data = df_vid.groupby("PublishDOW").size()
-        fig = px.imshow([heat_data.values], labels=dict(x=list(heat_data.index)), color_continuous_scale="reds", title="Uploads by Day of Week")
-        st.plotly_chart(fig, use_container_width=True)
+        if "Video Tags Wordcloud" in selected_insights:
+            st.markdown("#### Video Tags Wordcloud")
+            tags = [tag for sublist in df_vid["Tags"].dropna() for tag in sublist]
+            if tags:
+                cloud = WordCloud(width=600, height=400, background_color="black", colormap="Reds").generate(" ".join(tags))
+                buf = BytesIO()
+                plt.figure(figsize=(6, 4))
+                plt.imshow(cloud, interpolation="bilinear")
+                plt.axis("off")
+                plt.savefig(buf, format='png')
+                st.image(buf)
+            else:
+                st.caption("No tags to show.")
 
-    # 15. Top 5 Recent Videos Card
-    if "Top 5 Recent Videos" in selected_insights:
-        st.markdown("#### 5 Most Recent Videos")
-        recent = df_vid.sort_values("PublishDate", ascending=False).head(5)[["Title", "Views", "Likes"]]
-        st.table(recent)
+        if "Upload Day of Week Distribution" in selected_insights:
+            st.markdown("#### Upload Day of Week Heatmap")
+            heat_data = df_vid.groupby("PublishDOW").size()
+            fig = px.imshow([heat_data.values], labels=dict(x=list(heat_data.index)), color_continuous_scale="reds", title="Uploads by Day of Week")
+            st.plotly_chart(fig, use_container_width=True)
 
-    # 16. Average Video Duration
-    if "Average Video Duration" in selected_insights:
-        avg_dur = df_vid["DurationMin"].mean()
-        st.metric("Avg Video Duration (min)", f"{avg_dur:.1f}")
+        if "Top 5 Recent Videos" in selected_insights:
+            st.markdown("#### 5 Most Recent Videos")
+            recent = df_vid.sort_values("PublishDate", ascending=False).head(5)[["Title", "Views", "Likes"]]
+            st.table(recent)
 
-    # 17. Latest Video Engagement Card
-    if "Latest Video Engagement" in selected_insights:
-        latest_vid = df_vid.sort_values("PublishDate", ascending=False).iloc[0]
-        st.markdown(f"**Latest Video:** {latest_vid['Title']}")
-        st.metric("Views", latest_vid["Views"])
-        st.metric("Likes", latest_vid["Likes"])
-        st.metric("Comments", latest_vid["Comments"])
+        if "Average Video Duration" in selected_insights:
+            avg_dur = df_vid["DurationMin"].mean()
+            st.metric("Avg Video Duration (min)", f"{avg_dur:.1f}")
 
-    # 18. Engagement Rate per Video (Scatter)
-    if "Engagement Rate per Video" in selected_insights:
-        st.markdown("#### Engagement Rate Scatter Plot")
-        df_vid["EngagementRate"] = (df_vid["Likes"] + df_vid["Comments"]) / df_vid["Views"]
-        fig = px.scatter(df_vid, x="Views", y="EngagementRate", hover_data=["Title"], color_discrete_sequence=["red"])
-        st.plotly_chart(fig, use_container_width=True)
+        if "Latest Video Engagement" in selected_insights:
+            latest_vid = df_vid.sort_values("PublishDate", ascending=False).iloc[0]
+            st.markdown(f"**Latest Video:** {latest_vid['Title']}")
+            st.metric("Views", latest_vid["Views"])
+            st.metric("Likes", latest_vid["Likes"])
+            st.metric("Comments", latest_vid["Comments"])
 
-    # 19. Playlists Distribution Pie Chart
-    if "Playlists Distribution" in selected_insights:
-        st.markdown("#### Playlists Distribution")
-        playlist_titles = [pl["snippet"]["title"] for pl in playlists]
-        playlist_counts = pd.Series(playlist_titles).value_counts().reset_index()
-        fig = px.pie(playlist_counts, names="index", values=0, color_discrete_sequence=["red", "darkred"])
-        st.plotly_chart(fig, use_container_width=True)
+        if "Engagement Rate per Video" in selected_insights:
+            st.markdown("#### Engagement Rate Scatter Plot")
+            df_vid["EngagementRate"] = (df_vid["Likes"] + df_vid["Comments"]) / df_vid["Views"]
+            fig = px.scatter(df_vid, x="Views", y="EngagementRate", hover_data=["Title"], color_discrete_sequence=["red"])
+            st.plotly_chart(fig, use_container_width=True)
 
-    # 20. Comments Sentiment Gauge
-    if "Comments Sentiment" in selected_insights:
-        st.markdown("#### Comments Sentiment (Demo)")
-        st.caption("🔴 Sentiment analysis demo (API v3 does not fetch comment text for sentiment, so this is simulated)")
-        st.metric("Positivity Score", f"{np.random.randint(50, 100)}%")  # Simulated
+        if "Playlists Distribution" in selected_insights:
+            st.markdown("#### Playlists Distribution")
+            playlist_titles = [pl["snippet"]["title"] for pl in playlists]
+            playlist_counts = pd.Series(playlist_titles).value_counts().reset_index()
+            fig = px.pie(playlist_counts, names="index", values=0, color_discrete_sequence=["red", "darkred"])
+            st.plotly_chart(fig, use_container_width=True)
 
+        if "Comments Sentiment" in selected_insights:
+            st.markdown("#### Comments Sentiment (Demo)")
+            st.caption("🔴 Sentiment analysis demo (API v3 does not fetch comment text for sentiment, so this is simulated)")
+            st.metric("Positivity Score", f"{np.random.randint(50, 100)}%")  # Simulated
+
+    except Exception as e:
+        st.error(f"Error: {e}")
 
 st.sidebar.caption("Theme: YouTube style (white text, red graphs, black background)")
 st.sidebar.caption("Powered by YouTube Data API v3")
