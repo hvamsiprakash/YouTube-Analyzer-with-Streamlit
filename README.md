@@ -57,3 +57,8 @@ The dashboard uses a **dark background, white text, and red-themed visualization
 1. **Install dependencies**  
    ```bash
    pip install -r requirements.txt
+
+
+
+   streamlit run app.py
+
