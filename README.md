@@ -1,34 +1,59 @@
-# YouTube Analyzer: Unleash the Power of YouTube Insights! 🚀
+# 📊 YouTube Content Creator Insights Dashboard  
 
-Streamlit: https://youtube-analyzer-with-app-cpnmdvm6ky5mmaxaz98c9t.streamlit.app/
+🔗 **Live Demo**: [Try the Dashboard Here](https://youtube-analyzer-with-app-cpnmdvm6ky5mmaxaz98c9t.streamlit.app/)  
 
-Dive into the vibrant world of YouTube with the YouTube Analyzer, your go-to tool for comprehensive channel analytics, video recommendations, and sentiment analysis of comments. 📈🎥👥
+---
 
-## Explore the Fascinating Features 🌟
+## 🚀 Overview  
 
-### Channel Analytics 📊
-Uncover the secrets of your favorite YouTube channels!
-- Input a valid Channel ID and reveal detailed analytics, including channel title, description, country, total videos, and total views.
-- Explore advanced charts: time series charts for views, bar charts for likes and comments, and scatter plots for likes vs views.
-- View all video details in a DataFrame with clickable URLs for deeper exploration.
+This project is a **YouTube Channel Analytics Dashboard** built with **Streamlit** and the **YouTube Data API v3**.  
+It provides **deep insights** for YouTube content creators through **interactive charts, summary cards, and data tables**.  
 
-### Video Recommendation 🎬
-Discover the gems of YouTube tailored to your interests!
-- Enter a topic of interest, and get video recommendations based on YouTube search results.
-- Explore video details such as title, views, channel, and total comments.
-- Access direct links to recommended videos for an instant watch.
+The dashboard uses a **dark background, white text, and red-themed visualizations** to match YouTube’s branding.  
 
-### Sentimental Analysis 😊🤖😢
-Unravel the sentiments hidden in user comments!
-- Input a Video ID to analyze the sentiment of comments.
-- Choose between positive, neutral, or negative comments for sentiment analysis.
-- Visualize sentiment distribution with an interactive pie chart and view sentiment-specific comments.
+---
 
-## Get Started with YouTube IDs! 🚀
+## ✨ Key Highlights  
 
-Unlock the full potential of YouTube Analyzer by using valid YouTube IDs for channels and videos. Input a valid Channel ID to embark on a journey of comprehensive analytics or enter an exciting Video ID to unravel sentiment and more! 🆔💡
+- 🎯 Accepts **YouTube Channel ID** as input  
+- 📊 **20+ unique & advanced charts** for channel insights  
+- ⚡ Dynamic **filters & controls** for most charts  
+- 📈 Helps creators **understand performance & identify growth opportunities**  
+- 🎨 Consistent **YouTube-style theme** (black + red)  
 
-## Important Notice ⚠️
+---
 
-The YouTube Data API key used in this app is for demonstration purposes only. Replace it with your own API key to ensure uninterrupted access to YouTube data. Follow the instructions in the app's documentation to obtain and set up your API key.
+## 📌 Features  
 
+### 🔹 Channel Overview  
+- Subscribers, total views, video count, playlist count  
+
+### 🔹 Video Performance  
+- Upload frequency per month (with dynamic date filtering)  
+- Top videos by **views** and **likes** (horizontal/vertical bar charts)  
+- Trend lines for **views** and **likes** over time  
+
+### 🔹 Content Insights  
+- Category distribution (**pie chart**)  
+- Likes heatmap (**hour × day of week**)  
+- Sunburst chart for **comments distribution** (by category & video)  
+- Video duration insights (**histograms & box plots**)  
+
+### 🔹 Engagement Analysis  
+- Scatter plots: **likes vs duration per category**  
+- Cumulative **likes & views over time** (line/area charts with sliders)  
+- Calendar-style scatter plot for **uploads per day** (with min uploads filter)  
+
+### 🔹 Data Tables  
+- Playlist details table  
+- Most engaged videos table  
+
+✅ All charts use **red shades on black backgrounds** for a consistent theme.  
+
+---
+
+## 🛠️ Usage Instructions  
+
+1. **Install dependencies**  
+   ```bash
+   pip install -r requirements.txt
