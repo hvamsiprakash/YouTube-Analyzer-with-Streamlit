@@ -31,8 +31,23 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 sidebar = st.sidebar
-sidebar.title("Channel Insights Dashboard")
+sidebar.title("Channel Insights & Filters")
 channel_id = sidebar.text_input("YouTube Channel ID", help="Paste your Channel ID here")
+date_filter = sidebar.checkbox("Enable Date Range Filter")
+# Filtering options
+category_filter = sidebar.multiselect("Filter by category", 
+    ["Film", "Autos", "Music", "Sports", "Gaming", "Comedy", "Entertainment", "News", "Howto", "Education", "Science", "Other"], 
+    default=["Film", "Autos", "Music", "Sports", "Gaming", "Comedy", "Entertainment", "News", "Howto", "Education", "Science", "Other"])
+min_views = sidebar.number_input("Minimum Views (for charts/tabulation)", min_value=0, value=0, step=100)
+show_wordcloud = sidebar.checkbox("Show Wordcloud", value=True)
+show_heatmap = sidebar.checkbox("Show Upload Heatmap", value=True)
+show_bubble = sidebar.checkbox("Show Bubble Engagement", value=True)
+show_area_cumulative = sidebar.checkbox("Show Cumulative Growth", value=True)
+show_sunburst = sidebar.checkbox("Show Sunburst (Likes)", value=False)
+show_histogram = sidebar.checkbox("Show Duration Histogram", value=True)
+show_box = sidebar.checkbox("Show Boxplot Duration", value=False)
+show_scatter = sidebar.checkbox("Show Scatter Likes/Comments", value=False)
+show_treemap = sidebar.checkbox("Show Treemap (Views)", value=False)
 
 def get_youtube_client():
     return build("youtube", "v3", developerKey=API_KEY)
@@ -48,7 +63,7 @@ def fetch_channel(channel_id):
         return None
 
 @st.cache_data(ttl=1800)
-def fetch_all_videos(uploads_playlist_id, max_results=200):
+def fetch_all_videos(uploads_playlist_id, max_results=300):
     yt = get_youtube_client()
     videos = []
     nextPageToken = None
@@ -139,10 +154,21 @@ if channel_id:
         df_vid["Day"] = df_vid["PublishedDate"].dt.day
         df_vid["Hour"] = df_vid["PublishedDate"].dt.hour
         df_vid["Category"] = df_vid["CategoryId"].map(lambda x: category_map.get(x, "Other"))
+        
+        # Sidebar Date Range Filter
+        if date_filter and not df_vid.empty:
+            min_date, max_date = df_vid["PublishedDate"].min().date(), df_vid["PublishedDate"].max().date()
+            start_date = sidebar.date_input("Start Date", min_value=min_date, max_value=max_date, value=min_date)
+            end_date = sidebar.date_input("End Date", min_value=min_date, max_value=max_date, value=max_date)
+            df_vid = df_vid[(df_vid["PublishedDate"].dt.date >= start_date) & (df_vid["PublishedDate"].dt.date <= end_date)]
 
+        # Apply category filter and views filter
+        df_vid = df_vid[df_vid["Category"].isin(category_filter)]
+        df_vid = df_vid[df_vid["Views"] >= min_views]
+
+        # Cards summary
         st.markdown(f"# Insights for: **{channel['snippet']['title']}**")
         st.markdown("## Channel Overview")
-
         cards = st.columns(5)
         with cards[0]:
             st.image(channel["snippet"]["thumbnails"]["high"]["url"], width=80)
@@ -159,153 +185,137 @@ if channel_id:
         st.markdown(f"**Channel Description:** {channel['snippet'].get('description','No description')}")
 
         if not df_vid.empty:
-
-            # 1. Date Filter: uses calendar date input for start/end
-            st.markdown("## 1. Date Range Filter")
-            min_date, max_date = df_vid["PublishedDate"].min().date(), df_vid["PublishedDate"].max().date()
-            col1, col2 = st.columns(2)
-            with col1:
-                start_date = st.date_input("Start Date", min_value=min_date, max_value=max_date, value=min_date, key="start_date")
-            with col2:
-                end_date = st.date_input("End Date", min_value=min_date, max_value=max_date, value=max_date, key="end_date")
-            df_filtered = df_vid[(df_vid["PublishedDate"].dt.date >= start_date) & (df_vid["PublishedDate"].dt.date <= end_date)]
-
-            # 2. Uploads per Month (Bar chart)
-            st.markdown("## 2. Uploads Per Month")
-            up_month = df_filtered["Month"].value_counts().sort_index()
+            # Uploads per Month
+            st.markdown("Uploads Per Month")
+            up_month = df_vid["Month"].value_counts().sort_index()
             fig = px.bar(x=up_month.index, y=up_month.values, labels={'x':"Month",'y':'Uploads'},
                          color=up_month.values, color_continuous_scale='reds', title="Uploads per Month")
             st.plotly_chart(fig, use_container_width=True)
 
-            # 3. Top Videos by Views (Horizontal Bar)
-            st.markdown("## 3. Top 10 Videos by Views")
-            top_vids = df_filtered.sort_values("Views", ascending=False).head(10)
+            # Top Videos by Views
+            st.markdown("Top 10 Videos by Views")
+            top_vids = df_vid.sort_values("Views", ascending=False).head(10)
             fig = px.bar(top_vids, x="Views", y="Title", orientation='h', color="Views",
                          color_continuous_scale='reds', title="Top Videos by Views")
             st.plotly_chart(fig, use_container_width=True)
 
-            # 4. Top Videos by Likes (Vertical Bar)
-            st.markdown("## 4. Top 10 Videos by Likes")
-            top_likes = df_filtered.sort_values("Likes", ascending=False).head(10)
+            # Top Videos by Likes
+            st.markdown("Top 10 Videos by Likes")
+            top_likes = df_vid.sort_values("Likes", ascending=False).head(10)
             fig = px.bar(top_likes, x="Title", y="Likes", color="Likes", color_continuous_scale='reds', title="Top Videos by Likes")
             st.plotly_chart(fig, use_container_width=True)
 
-            # 5. Views & Likes over Time (Dual Line Chart)
-            st.markdown("## 5. Views & Likes Over Time")
-            grouped = df_filtered.groupby("Month")[["Views", "Likes"]].sum().reset_index()
+            # Views & Likes over Time
+            st.markdown("Views & Likes Over Time")
+            grouped = df_vid.groupby("Month")[["Views", "Likes"]].sum().reset_index()
             fig = px.line(grouped, x="Month", y=["Views", "Likes"], markers=True, color_discrete_sequence=['firebrick', 'indianred'])
             st.plotly_chart(fig, use_container_width=True)
 
-            # 6. Engagement Rate per Video (Scatter)
-            st.markdown("## 6. Engagement Rate")
-            df_filtered["EngagementRate"] = (df_filtered["Likes"] + df_filtered["Comments"]) / df_filtered["Views"].replace(0, np.nan)
-            fig = px.scatter(df_filtered, x="Views", y="EngagementRate", size="Likes", color="EngagementRate",
+            # Engagement Rate
+            st.markdown("Engagement Rate")
+            df_vid["EngagementRate"] = (df_vid["Likes"] + df_vid["Comments"]) / df_vid["Views"].replace(0, np.nan)
+            fig = px.scatter(df_vid, x="Views", y="EngagementRate", size="Likes", color="EngagementRate",
                              color_continuous_scale='reds', hover_name="Title", title="Engagement Rate per Video")
             st.plotly_chart(fig, use_container_width=True)
-
-            # 7. Category Distribution (Pie/Donut)
-            st.markdown("## 7. Category Distribution")
-            cat_counts = df_filtered["Category"].value_counts().reset_index()
-            fig = px.pie(cat_counts, names="index", values="Category", hole=0.5, color_discrete_sequence=px.colors.sequential.Reds)
+            
+            # Category Distribution (Pie/Donut) - FIXED
+            st.markdown("Category Distribution")
+            cat_counts = df_vid["Category"].value_counts()
+            fig = px.pie(cat_counts.reset_index(), names="index", values="Category", hole=0.5, color_discrete_sequence=px.colors.sequential.Reds)
             st.plotly_chart(fig, use_container_width=True)
 
-            # 8. Video Upload Heatmap (by Hour and Day)
-            st.markdown("## 8. Uploads Heatmap by Hour and Weekday")
-            heatmap_data = df_filtered.groupby(["DayOfWeek", "Hour"]).size().unstack(fill_value=0)
-            fig = px.imshow(heatmap_data, color_continuous_scale="reds", title="Uploads Heatmap")
-            st.plotly_chart(fig, use_container_width=True)
+            # Uploads Heatmap
+            if show_heatmap:
+                st.markdown("Uploads Heatmap by Hour and Weekday")
+                heatmap_data = df_vid.groupby(["DayOfWeek", "Hour"]).size().unstack(fill_value=0)
+                fig = px.imshow(heatmap_data, color_continuous_scale="reds", title="Uploads Heatmap")
+                st.plotly_chart(fig, use_container_width=True)
 
-            # 9. Duration Distribution (Histogram)
-            st.markdown("## 9. Video Duration Distribution")
-            bin_count = st.slider("Bin count", min_value=5, max_value=30, value=12, key="dur_bins")
-            fig = px.histogram(df_filtered, x="DurationMin", nbins=bin_count, color_discrete_sequence=["red"], title="Duration Histogram")
-            st.plotly_chart(fig, use_container_width=True)
+            # Duration Histogram
+            if show_histogram:
+                st.markdown("Video Duration Distribution")
+                fig = px.histogram(df_vid, x="DurationMin", nbins=12, color_discrete_sequence=["red"], title="Duration Histogram")
+                st.plotly_chart(fig, use_container_width=True)
 
-            # 10. Wordcloud (Tags)
-            st.markdown("## 10. Video Tags Wordcloud")
-            all_tags = [tag for tags in df_filtered["Tags"].dropna() for tag in tags]
-            if all_tags:
-                wc = WordCloud(width=800, height=350, background_color="black", colormap="Reds").generate(" ".join(all_tags))
-                plt.figure(figsize=(10, 4))
-                plt.imshow(wc, interpolation="bilinear")
-                plt.axis("off")
-                buf = BytesIO()
-                plt.savefig(buf, format='png')
-                plt.close()
-                st.image(buf)
-            else:
-                st.info("No tags found.")
+            # Wordcloud
+            if show_wordcloud:
+                st.markdown("Video Tags Wordcloud")
+                all_tags = [tag for tags in df_vid["Tags"].dropna() for tag in tags]
+                if all_tags:
+                    wc = WordCloud(width=800, height=350, background_color="black", colormap="Reds").generate(" ".join(all_tags))
+                    plt.figure(figsize=(10, 4))
+                    plt.imshow(wc, interpolation="bilinear")
+                    plt.axis("off")
+                    buf = BytesIO()
+                    plt.savefig(buf, format='png')
+                    plt.close()
+                    st.image(buf)
+                else:
+                    st.info("No tags found.")
 
-            # 11. Duration by Category (Box Plot)
-            st.markdown("## 11. Duration by Category")
-            fig = px.box(df_filtered, x="Category", y="DurationMin", color="Category",
-                        color_discrete_sequence=px.colors.sequential.Reds, title="Duration per Category")
-            st.plotly_chart(fig, use_container_width=True)
+            # Duration by Category (Box Plot)
+            if show_box:
+                st.markdown("Duration by Category")
+                fig = px.box(df_vid, x="Category", y="DurationMin", color="Category",
+                            color_discrete_sequence=px.colors.sequential.Reds, title="Duration per Category")
+                st.plotly_chart(fig, use_container_width=True)
 
-            # 12. Likes by Category (Violin)
-            st.markdown("## 12. Likes by Category [Violin]")
-            fig = px.violin(df_filtered, x="Category", y="Likes", box=True, points="all",
-                            color="Category", color_discrete_sequence=px.colors.sequential.Reds)
-            st.plotly_chart(fig, use_container_width=True)
+            # Comments/Likes Scatter
+            if show_scatter:
+                st.markdown("Comments vs Likes Scatter")
+                fig = px.scatter(df_vid, x="Likes", y="Comments", size="Views",
+                                color="Views", color_continuous_scale="reds", hover_name="Title",
+                                title="Comments vs Likes Bubble Chart")
+                st.plotly_chart(fig, use_container_width=True)
 
-            # 13. Comments Distribution (Histogram)
-            st.markdown("## 13. Comments Distribution")
-            fig = px.histogram(df_filtered, x="Comments", color_discrete_sequence=["darkred"], title="Comments Histogram")
-            st.plotly_chart(fig, use_container_width=True)
+            # Bubble Engagement
+            if show_bubble:
+                st.markdown("Bubble Chart: Likes vs Comments vs Duration")
+                fig = px.scatter(df_vid, x="DurationMin", y="Likes", size="Comments", color="Views",
+                    color_continuous_scale="reds", hover_name="Title", title="Bubble Chart (Likes/Comments/Duration)")
+                st.plotly_chart(fig, use_container_width=True)
 
-            # 14. Playlist Breakdown (Table)
-            st.markdown("## 14. Playlists")
+            # Cumulative Views Growth
+            if show_area_cumulative:
+                st.markdown("Cumulative Views Growth Over Time")
+                growth_df = df_vid.sort_values("PublishedDate")
+                growth_df["CumulativeViews"] = growth_df["Views"].cumsum()
+                fig = px.area(growth_df, x="PublishedDate", y="CumulativeViews",
+                            color_discrete_sequence=["red"], title="Cumulative Views Growth Over Time")
+                st.plotly_chart(fig, use_container_width=True)
+
+            # Sunburst Likes
+            if show_sunburst:
+                st.markdown("Sunburst of Likes by Category/Video")
+                sunburst_df = df_vid[["Category", "Title", "Likes"]]
+                fig = px.sunburst(sunburst_df, path=["Category", "Title"], values="Likes",
+                                color="Likes", color_continuous_scale="reds", title="Likes Sunburst")
+                st.plotly_chart(fig, use_container_width=True)
+
+            # Treemap Views
+            if show_treemap:
+                st.markdown("Treemap of Views by Category/Video")
+                fig = px.treemap(df_vid, path=["Category", "Title"], values="Views",
+                                color="Views", color_continuous_scale="reds", title="Treemap: Views")
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Playlists Table
+            st.markdown("Playlists")
             pl = pd.DataFrame([{
                 "Title": p["snippet"]["title"],
                 "VideoCount": p["contentDetails"].get("itemCount", "N/A")
             } for p in playlists])
             st.dataframe(pl)
 
-            # 15. Sunburst Chart: Category > Video > Likes
-            st.markdown("## 15. Sunburst of Likes by Category/Video")
-            sunburst_df = df_filtered[["Category", "Title", "Likes"]]
-            fig = px.sunburst(sunburst_df, path=["Category", "Title"], values="Likes",
-                            color="Likes", color_continuous_scale="reds", title="Likes Sunburst")
-            st.plotly_chart(fig, use_container_width=True)
-
-            # 16. Treemap of Views by Category and Video
-            st.markdown("## 16. Treemap of Views by Category/Video")
-            fig = px.treemap(df_filtered, path=["Category", "Title"], values="Views",
-                            color="Views", color_continuous_scale="reds", title="Treemap: Views")
-            st.plotly_chart(fig, use_container_width=True)
-
-            # 17. Bubble chart (Comments vs Likes)
-            st.markdown("## 17. Bubble Chart: Comments vs Likes")
-            fig = px.scatter(df_filtered, x="Likes", y="Comments", size="Views",
-                            color="Views", color_continuous_scale="reds", hover_name="Title",
-                            title="Comments vs Likes Bubble Chart")
-            st.plotly_chart(fig, use_container_width=True)
-
-            # 18. Videos per Day (Calendar)
-            st.markdown("## 18. Videos per Day [Calendar]")
-            calendar_df = df_filtered.groupby(df_filtered["PublishedDate"].dt.date).size().reset_index(name="Uploads")
-            fig = px.scatter(calendar_df, x="PublishedDate", y="Uploads", color="Uploads",
-                            color_continuous_scale="reds", title="Uploads per Day (Calendar view)")
-            st.plotly_chart(fig, use_container_width=True)
-
-            # 19. Most Engaged Videos Table (Likes + Comments)
-            st.markdown("## 19. Most Engaged Videos")
-            most_engaged = df_filtered.assign(TotalEngagement=lambda x: x["Likes"] + x["Comments"])
+            # Top videos - Table with engagement
+            st.markdown("Most Engaged Videos")
+            most_engaged = df_vid.assign(TotalEngagement=lambda x: x["Likes"] + x["Comments"])
             st.dataframe(most_engaged.sort_values("TotalEngagement", ascending=False)[
                 ["Title", "TotalEngagement", "Likes", "Comments", "Views", "PublishedDate"]
             ].head(10))
-
-            # 20. Time Series: Cumulative Views Growth
-            st.markdown("## 20. Cumulative Views Growth")
-            growth_df = df_filtered.sort_values("PublishedDate")
-            growth_df["CumulativeViews"] = growth_df["Views"].cumsum()
-            fig = px.area(growth_df, x="PublishedDate", y="CumulativeViews",
-                        color_discrete_sequence=["red"], title="Cumulative Views Growth Over Time")
-            st.plotly_chart(fig, use_container_width=True)
-
         else:
             st.warning("No video data found for this channel.")
 
-    sidebar.caption("YouTube theme • Red charts • 20 unique insights • Calendar/date filters near each chart")
+    sidebar.caption("YouTube style • Red charts • Advanced insights • Filters in sidebar")
 else:
     st.info("Enter a valid YouTube Channel ID to see insights.")
