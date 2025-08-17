@@ -1,9 +1,8 @@
 streamlit
 google-api-python-client
-google-auth
 pandas
 plotly
-numpy
 matplotlib
-calmap
-requests
+wordcloud
+isodate
+numpy
