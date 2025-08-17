@@ -25,6 +25,7 @@ st.markdown("""
     h1, h2, h3, h4, h5, h6 { color: #fff; }
     .stTable, .css-18ni7ap, .css-1v0mbdj, .css-1cpxqw2 { color: #fff; }
     .stPlotlyChart { background-color: #222;}
+    [data-testid="stSidebar"] { background-color: #1B1B1B; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -163,7 +164,7 @@ if channel_id:
             with overview_cols[1]:
                 st.metric("Subscribers", f"{int(channel['statistics']['subscriberCount']):,}")
                 st.metric("Total Views", f"{int(channel['statistics']['viewCount']):,}")
-            with overview_cols:
+            with overview_cols:  # Fixed! Use specific column, not the list
                 st.metric("Total Videos", f"{int(channel['statistics']['videoCount']):,}")
             st.markdown(f"**Channel Description:** {channel['snippet'].get('description','No description')}")
 
