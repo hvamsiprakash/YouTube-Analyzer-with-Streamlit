@@ -155,6 +155,7 @@ if channel_id:
         df_vid["Category"] = df_vid["CategoryId"].map(lambda x: category_map.get(x, "Other"))
 
         st.markdown(f"# Insights for: **{channel['snippet']['title']}**")
+
         overview_cols = st.columns(3)
         if "Channel Card" in selected_insights:
             with overview_cols[0]:
@@ -162,7 +163,7 @@ if channel_id:
             with overview_cols[1]:
                 st.metric("Subscribers", f"{int(channel['statistics']['subscriberCount']):,}")
                 st.metric("Total Views", f"{int(channel['statistics']['viewCount']):,}")
-            with overview_cols:  # Corrected here: use specific column, NOT list
+            with overview_cols[2]:
                 st.metric("Total Videos", f"{int(channel['statistics']['videoCount']):,}")
             st.markdown(f"**Channel Description:** {channel['snippet'].get('description','No description')}")
 
@@ -174,12 +175,13 @@ if channel_id:
             with metric_cols[1]:
                 st.metric("Total Views", f"{int(channel['statistics']['viewCount']):,}")
         if "Total Videos" in selected_insights:
-            with metric_cols:
+            with metric_cols[2]:
                 st.metric("Total Videos", f"{int(channel['statistics']['videoCount']):,}")
 
         if not df_vid.empty:
+
             if "Most Viewed Videos" in selected_insights:
-                mv_col1, mv_col2 = st.columns([2,1])
+                mv_col1, mv_col2 = st.columns([2, 1])
                 with mv_col1:
                     st.markdown("#### Top 7 Most Viewed Videos (Bar Chart)")
                     top_vid = df_vid.sort_values("Views", ascending=False).head(7)
@@ -212,7 +214,7 @@ if channel_id:
                 up_freq = df_vid["Month"].value_counts().sort_index()
                 fig = px.line(
                     x=up_freq.index, y=up_freq.values,
-                    labels={'x':"Month",'y':'Videos Uploaded'},
+                    labels={'x': "Month", 'y': 'Videos Uploaded'},
                     markers=True, title="Uploads per Month",
                     color_discrete_sequence=["red"]
                 )
@@ -224,7 +226,7 @@ if channel_id:
                 cat_counts.columns = ["Category", "Count"]
                 fig = px.pie(
                     cat_counts, names="Category", values="Count",
-                    color_discrete_sequence=["red","darkred"],
+                    color_discrete_sequence=["red", "darkred"],
                     title="Video Categories Proportion"
                 )
                 st.plotly_chart(fig, use_container_width=True)
@@ -250,7 +252,7 @@ if channel_id:
             if "Uploads by Day of Week" in selected_insights:
                 st.markdown("#### Uploads by Day of Week")
                 dow_counts = df_vid["DayOfWeek"].value_counts().reindex(
-                    ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+                    ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
                 ).fillna(0)
                 fig = px.bar(
                     x=dow_counts.index, y=dow_counts.values,
