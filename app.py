@@ -34,7 +34,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- Sidebar inputs ---
+# --- Sidebar Inputs ---
 st.sidebar.title("YouTube Channel Dashboard")
 channel_id = st.sidebar.text_input("Enter Channel ID")
 competitor_id = st.sidebar.text_input("Competitor Channel ID (optional)")
@@ -69,7 +69,7 @@ def get_yt_client():
 def get_channel_stats(client, channel_id):
     req = client.channels().list(part="statistics,snippet", id=channel_id)
     resp = req.execute()
-    if "items" in resp and len(resp["items"]) > 0:
+    if "items" in resp and isinstance(resp["items"], list) and len(resp["items"]) > 0:
         stats = resp["items"][0]["statistics"]
         name = resp["items"]["snippet"]["title"]
         return stats, name
@@ -82,7 +82,7 @@ def get_videos(client, channel_id, max_results=50):
         req = client.search().list(part="id,snippet", channelId=channel_id, maxResults=min(50, max_results-len(v_ids)), type="video", order="date", pageToken=next_page_token)
         resp = req.execute()
         for item in resp.get("items", []):
-            if "videoId" in item["id"]:
+            if isinstance(item["id"], dict) and "videoId" in item["id"]:
                 v_ids.append(item["id"]["videoId"])
                 v_titles.append(item["snippet"]["title"])
                 v_dates.append(item["snippet"]["publishedAt"])
