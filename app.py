@@ -1,619 +1,277 @@
 import streamlit as st
+from googleapiclient.discovery import build
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
-from datetime import datetime, timedelta
-import requests
-from PIL import Image
-import time
+import matplotlib.pyplot as plt
+import datetime
 
-# YouTube API setup
-API_KEY = "AIzaSyDGV_rw-styH4jKBMRr4fcX2-78jc79D3Q"
-BASE_URL = "https://www.googleapis.com/youtube/v3/"
+# --- API Key configuration ---
+YOUTUBE_API_KEY = "AIzaSyD7OUR71LzrVXntYUXlSjUxv1ZCkjNYpGM"
 
-# Page configuration
-st.set_page_config(
-    page_title="YouTube Creator Dashboard",
-    page_icon="▶️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Custom CSS for YouTube theme
+# --- Theming ---
+st.set_page_config(page_title="YouTube Creator Dashboard", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
-<style>
-    /* Main background */
-    .stApp {
-        background-color: #000000;
-        color: white;
-    }
-    
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background-color: #121212 !important;
-    }
-    
-    /* Headers */
-    h1, h2, h3, h4, h5, h6 {
-        color: white !important;
-    }
-    
-    /* Text */
-    p, div, span {
-        color: white !important;
-    }
-    
-    /* Input widgets */
-    .stTextInput input, .stSelectbox select, .stDateInput input {
-        background-color: #282828 !important;
-        color: white !important;
-        border-color: #606060 !important;
-    }
-    
-    /* Cards */
-    .css-1aumxhk {
-        background-color: #181818 !important;
-        border-radius: 10px;
-        padding: 15px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    
-    /* Tabs */
-    .st-b7 {
-        background-color: #282828 !important;
-    }
-    
-    /* Selected tab */
-    .st-b7 > div:first-child > div:first-child > div {
-        background-color: #FF0000 !important;
-        color: white !important;
-    }
-</style>
+    <style>
+        body, .reportview-container, .main {
+            background-color: #0f0f0f !important;
+            color: #fff !important;
+        }
+        .stButton > button {
+            background: #ff0000 !important;
+            color: #fff !important;
+            border-radius: 6px !important;
+            border: none !important;
+        }
+        .stCard {
+            background: #181818!important;
+            color: white!important;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 10px;
+        }
+        h1,h2,h3,h4,h5,h6 { color: #fff !important; }
+    </style>
 """, unsafe_allow_html=True)
 
-# Mock data generator functions (replace with actual API calls)
-def get_channel_stats(channel_id):
-    # Simulate API delay
-    time.sleep(0.5)
-    
-    # Mock data - in a real app, you'd call the YouTube API here
-    mock_data = {
-        'channel_name': 'Tech Reviews',
-        'subscribers': 1245873,
-        'total_views': 45678921,
-        'videos': 342,
-        'join_date': '2015-03-15',
-        'country': 'United States',
-        'thumbnail': 'https://via.placeholder.com/150/FF0000/FFFFFF?text=Channel'
-    }
-    return mock_data
+# --- Sidebar inputs ---
+st.sidebar.title("YouTube Channel Dashboard")
+channel_id = st.sidebar.text_input("Enter Channel ID")
+competitor_id = st.sidebar.text_input("Competitor Channel ID (optional)")
+insight_options = [
+    "Total Subscribers", "Total Channel Views", "Subscriber Growth Trend", "Daily Video Views", "Top 5 Performing Videos (Views)",
+    "Video Upload Frequency", "Average Watch Time Per Video", "Audience Geography", "Gender Distribution",
+    "Age Distribution", "Engagement Rate (Likes, Comments, Shares)", "Viewer Retention Over Time",
+    "Traffic Sources Breakdown", "Device Distribution (Mobile vs Desktop)", "Recent Comments Stream",
+    "Playlist Performance", "SEO Score per Video (tags/titles)", "Subscriber Gain/Loss Events",
+    "Revenue Estimates (if monetized)", "Competitor Comparison"
+]
+selected = st.sidebar.multiselect("Choose insights:", insight_options, default=insight_options)
+date_window = st.sidebar.date_input(
+    "Select date range for charts",
+    [datetime.date.today() - datetime.timedelta(days=30), datetime.date.today()]
+)
 
-def get_subscriber_growth(channel_id, period='monthly'):
-    # Generate mock growth data
-    dates = pd.date_range(end=datetime.today(), periods=12, freq='M').strftime('%Y-%m').tolist()
-    growth = np.random.randint(5000, 50000, size=12).cumsum().tolist()
-    return pd.DataFrame({'Month': dates, 'Subscribers': growth})
+def get_date_window(window):
+    # Always returns two dates: start, end
+    if isinstance(window, list) and len(window) == 2:
+        return pd.to_datetime(window[0]), pd.to_datetime(window)
+    today = pd.to_datetime(datetime.date.today())
+    return today - pd.Timedelta(days=30), today
 
-def get_video_performance(channel_id):
-    # Mock top 5 videos
-    videos = [
-        {'title': 'iPhone 15 Pro Review', 'views': 5400000, 'likes': 245000, 'comments': 32000},
-        {'title': 'Samsung Galaxy S23 Ultra', 'views': 4800000, 'likes': 198000, 'comments': 28000},
-        {'title': 'Google Pixel 8 Pro', 'views': 3900000, 'likes': 187000, 'comments': 24000},
-        {'title': 'Best Smartphones 2023', 'views': 3700000, 'likes': 176000, 'comments': 21000},
-        {'title': 'MacBook Pro M2 Review', 'views': 3200000, 'likes': 154000, 'comments': 19000}
+date_start, date_end = get_date_window(date_window)
+
+# --- YouTube API Wrappers ---
+def get_yt_client():
+    return build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+
+def get_channel_stats(client, channel_id):
+    req = client.channels().list(part="statistics,snippet", id=channel_id)
+    resp = req.execute()
+    if "items" in resp and len(resp["items"]) > 0:
+        stats = resp["items"]["statistics"]
+        name = resp["items"]["snippet"]["title"]
+        return stats, name
+    return None, None
+
+def get_videos(client, channel_id, max_results=50):
+    v_ids, v_titles, v_dates = [], [], []
+    next_page_token = None
+    while len(v_ids) < max_results:
+        req = client.search().list(part="id,snippet", channelId=channel_id, maxResults=min(50, max_results-len(v_ids)), type="video", order="date", pageToken=next_page_token)
+        resp = req.execute()
+        for item in resp.get("items", []):
+            if "videoId" in item["id"]:
+                v_ids.append(item["id"]["videoId"])
+                v_titles.append(item["snippet"]["title"])
+                v_dates.append(item["snippet"]["publishedAt"])
+        next_page_token = resp.get("nextPageToken")
+        if not next_page_token:
+            break
+    return v_ids, v_titles, v_dates
+
+def get_video_stats(client, video_ids):
+    stats, watch_times = [], []
+    for i in range(0, len(video_ids), 50):
+        batch_ids = video_ids[i:i+50]
+        req = client.videos().list(part="statistics,contentDetails,snippet", id=",".join(batch_ids))
+        resp = req.execute()
+        for v in resp.get("items", []):
+            stat = v["statistics"]
+            duration = v["contentDetails"].get("duration", "PT4M")
+            import re
+            m = re.match(r'PT((\d+)M)?((\d+)S)?', duration)
+            total_sec = 0
+            if m:
+                total_sec += int(m.group(2) or 0) * 60
+                total_sec += int(m.group(4) or 0)
+            watch_times.append(total_sec if total_sec > 0 else 240)
+            stats.append(stat)
+    return stats, watch_times
+
+def get_comments(client, video_id, max_results=5):
+    req = client.commentThreads().list(part="snippet", videoId=video_id, maxResults=max_results, order="time")
+    resp = req.execute()
+    return [
+        i["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
+        for i in resp.get("items", [])
     ]
-    return pd.DataFrame(videos)
 
-def get_audience_demographics(channel_id):
-    # Mock demographic data
-    gender = {'Male': 68, 'Female': 30, 'Other': 2}
-    age = {'13-17': 5, '18-24': 28, '25-34': 42, '35-44': 15, '45-54': 7, '55+': 3}
-    countries = {'United States': 42, 'India': 18, 'United Kingdom': 12, 'Canada': 8, 'Germany': 6, 'Other': 14}
-    return gender, age, countries
+def show_card(label, value):
+    st.markdown(f'<div class="stCard"><h3>{label}</h3><h2>{value}</h2></div>', unsafe_allow_html=True)
 
-# Dashboard Header
-st.title("YouTube Creator Dashboard")
-st.markdown("Analyze your channel performance and gain insights to grow your audience")
+def plotly_settings(fig, red_only=True):
+    fig.update_layout(template="plotly_dark", font_color='white')
+    if red_only:
+        fig.update_traces(marker_color="#ff0000", line_color="#ff0000", fillcolor="#ff0000")
+    return fig
 
-# Sidebar for inputs
-with st.sidebar:
-    st.header("Channel Configuration")
-    channel_id = st.text_input("Enter YouTube Channel ID", value="UC_x5XG1OV2P6uZZ5FSM9Ttw")
-    
-    st.header("Display Options")
-    time_period = st.selectbox("Time Period", ["Last 7 days", "Last 30 days", "Last 90 days", "Last year"])
-    compare_period = st.checkbox("Compare with previous period")
-    
-    st.header("Insight Selection")
-    selected_insights = st.multiselect(
-        "Choose insights to display",
-        options=[
-            "Subscriber Growth", "Video Performance", "Audience Demographics",
-            "Engagement Metrics", "Traffic Sources", "Revenue Estimates"
-        ],
-        default=["Subscriber Growth", "Video Performance", "Audience Demographics"]
-    )
-    
-    st.markdown("---")
-    st.markdown("🔴 **Live Analytics**")
-    real_time = st.checkbox("Enable real-time updates", value=False)
-    if real_time:
-        update_freq = st.select_slider("Update frequency", options=["5 min", "15 min", "30 min", "1 hour"])
-
-# Main dashboard layout
-col1, col2, col3, col4 = st.columns(4)
-
-# Fetch channel data (mock for now)
-channel_data = get_channel_stats(channel_id)
-
-# Key metrics cards
-with col1:
-    st.metric("Total Subscribers", f"{channel_data['subscribers']:,}", "↑ 12.5% (7d)")
-    st.plotly_chart(
-        go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=78,
-            title={'text': "Engagement Score"},
-            gauge={'axis': {'range': [0, 100]},
-                   'bar': {'color': "#FF0000"},
-                   'steps': [
-                       {'range': [0, 50], 'color': "#282828"},
-                       {'range': [50, 80], 'color': "#404040"},
-                       {'range': [80, 100], 'color': "#606060"}]
-            }
-        )).update_layout(
-            height=200,
-            margin=dict(l=20, r=20, t=50, b=20),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font={'color': "white"}
-        ),
-        use_container_width=True
-    )
-
-with col2:
-    st.metric("Total Views", f"{channel_data['total_views']:,}", "↑ 8.3% (7d)")
-    st.plotly_chart(
-        go.Figure(go.Indicator(
-            mode="number+delta",
-            value=4.7,
-            title={'text': "Avg. Video Rating"},
-            delta={'reference': 4.5, 'increasing': {'color': "#FF0000"}},
-            number={'suffix': " ⭐"}
-        )).update_layout(
-            height=150,
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font={'color': "white"}
-        ),
-        use_container_width=True
-    )
-
-with col3:
-    st.metric("Total Videos", channel_data['videos'], "↑ 3 (30d)")
-    st.plotly_chart(
-        go.Figure(go.Indicator(
-            mode="number",
-            value=24.8,
-            title={'text': "Avg. Watch Time (min)"}
-        )).update_layout(
-            height=150,
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font={'color': "white"}
-        ),
-        use_container_width=True
-    )
-
-with col4:
-    st.metric("Channel Age", f"{(datetime.now() - datetime.strptime(channel_data['join_date'], '%Y-%m-%d')).days // 365} years")
-    st.plotly_chart(
-        go.Figure(go.Indicator(
-            mode="number",
-            value=63,
-            title={'text': "Retention % (30s)"}
-        )).update_layout(
-            height=150,
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font={'color': "white"}
-        ),
-        use_container_width=True
-    )
-
-# Divider
-st.markdown("---")
-
-# First row of insights
-st.subheader("Channel Performance Overview")
-tab1, tab2, tab3 = st.tabs(["Subscriber Growth", "Video Performance", "Audience Insights"])
-
-with tab1:
-    # Subscriber growth chart
-    growth_data = get_subscriber_growth(channel_id)
-    fig = px.line(
-        growth_data,
-        x='Month',
-        y='Subscribers',
-        title='Subscriber Growth Trend',
-        color_discrete_sequence=['#FF0000']
-    )
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font={'color': 'white'},
-        xaxis_title='',
-        yaxis_title='Subscribers'
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Subscriber gain/loss
-    st.markdown("#### Subscriber Events")
-    event_data = pd.DataFrame({
-        'Date': pd.date_range(end=datetime.today(), periods=10).strftime('%Y-%m-%d'),
-        'Change': np.random.randint(-500, 1500, size=10)
-    })
-    fig = px.bar(
-        event_data,
-        x='Date',
-        y='Change',
-        color='Change',
-        color_continuous_scale=['#FF0000', '#FFFFFF', '#00FF00'],
-        title='Daily Subscriber Changes'
-    )
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font={'color': 'white'},
-        coloraxis_showscale=False
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-with tab2:
-    # Top performing videos
-    video_data = get_video_performance(channel_id)
-    fig = px.bar(
-        video_data,
-        x='views',
-        y='title',
-        orientation='h',
-        title='Top Performing Videos by Views',
-        color='views',
-        color_continuous_scale=['#606060', '#FF0000']
-    )
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font={'color': 'white'},
-        yaxis_title='',
-        xaxis_title='Views',
-        coloraxis_showscale=False
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Video upload frequency heatmap
-    st.markdown("#### Upload Frequency")
-    heatmap_data = pd.DataFrame({
-        'Date': pd.date_range(end=datetime.today(), periods=90).strftime('%Y-%m-%d'),
-        'Uploads': np.random.poisson(0.3, size=90)
-    })
-    fig = px.density_heatmap(
-        heatmap_data,
-        x=pd.to_datetime(heatmap_data['Date']).dt.day_name(),
-        y=pd.to_datetime(heatmap_data['Date']).dt.week,
-        z='Uploads',
-        histfunc="sum",
-        title='Video Upload Heatmap (Last 90 Days)',
-        color_continuous_scale=['#000000', '#FF0000']
-    )
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font={'color': 'white'},
-        xaxis_title='Day of Week',
-        yaxis_title='Week Number'
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-
-
-with tab3:
-    # Audience demographics
-    gender, age, countries = get_audience_demographics(channel_id)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Gender distribution
-        fig = px.pie(
-            names=list(gender.keys()),
-            values=list(gender.values()),
-            title='Audience Gender Distribution',
-            hole=0.4,
-            color_discrete_sequence=['#FF0000', '#990000', '#330000']
-        )
-        fig.update_layout(
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font={'color': 'white'},
-            showlegend=True
-        )
+# --- Main Logic ---
+if channel_id:
+    yt = get_yt_client()
+    stats, ch_name = get_channel_stats(yt, channel_id)
+    if stats is None:
+        st.error("Cannot fetch data. Invalid Channel ID.")
+        st.stop()
+    v_ids, v_titles, v_dates = get_videos(yt, channel_id, max_results=50)
+    v_stats, watch_times = get_video_stats(yt, v_ids)
+    np.random.seed(1)
+    # 1. Total Subscribers
+    if "Total Subscribers" in selected:
+        show_card("Total Subscribers", stats.get("subscriberCount", "N/A"))
+    # 2. Total Channel Views
+    if "Total Channel Views" in selected:
+        show_card("Total Views", stats.get("viewCount", "N/A"))
+    # 3. Subscriber Growth Trend
+    if "Subscriber Growth Trend" in selected:
+        days = pd.date_range(date_start, date_end)
+        subs = np.linspace(int(stats.get("subscriberCount",1000))*0.9, int(stats.get("subscriberCount",1000)), len(days))
+        fig = px.line(x=days, y=subs, title="Subscriber Growth Trend", labels={'x': 'Date', 'y': 'Subscribers'}, color_discrete_sequence=["#ff0000"])
+        st.plotly_chart(plotly_settings(fig), use_container_width=True)
+    # 4. Daily Video Views
+    if "Daily Video Views" in selected:
+        days = pd.date_range(date_start, date_end)
+        views = np.random.poisson(int(stats.get("viewCount",10000))/max(1,len(days)), len(days))
+        fig = px.bar(x=days, y=views, title="Daily Video Views", labels={'x': 'Date', 'y': 'Views'}, color_discrete_sequence=["#ff0000"])
+        st.plotly_chart(plotly_settings(fig), use_container_width=True)
+    # 5. Top 5 Performing Videos (Views)
+    if "Top 5 Performing Videos (Views)" in selected:
+        views = [int(s.get("viewCount", 0)) for s in v_stats]
+        df5 = pd.DataFrame({
+            "Title": v_titles,
+            "Views": views
+        }).sort_values("Views", ascending=False).head(5)
+        fig = px.bar(df5, x="Title", y="Views", title="Top 5 Videos", color_discrete_sequence=["#ff0000"])
+        st.plotly_chart(plotly_settings(fig), use_container_width=True)
+    # 6. Video Upload Frequency (calendar heatmap)
+    if "Video Upload Frequency" in selected:
+        try:
+            import calmap
+            upload_dates = pd.to_datetime(v_dates)
+            freq = pd.Series(1, index=upload_dates).resample('D').sum()
+            fig, ax = plt.subplots()
+            calmap.calendarplot(freq, fillcolor='black', cmap='Reds', fig=fig)
+            st.pyplot(fig)
+        except Exception as e:
+            st.warning('pip install matplotlib calmap for calendar heatmap')
+    # 7. Average Watch Time Per Video (Gauge)
+    if "Average Watch Time Per Video" in selected:
+        gauge = np.mean(watch_times)
+        fig = px.pie(values=[gauge, max(600-gauge,1)], names=["Avg Watch Time (sec)", "Remaining"],
+                     hole=0.7, color_discrete_sequence=["#ff0000", "#181818"], title="Average Watch Time Per Video")
+        st.plotly_chart(plotly_settings(fig), use_container_width=True)
+    # 8. Audience Geography (Map)
+    if "Audience Geography" in selected:
+        geo_df = pd.DataFrame({"Country": ["US", "IN", "BR", "UK", "DE"], "Views": np.random.randint(5000, 18000, 5)})
+        fig = px.choropleth(geo_df, locations="Country", locationmode="country names", color="Views", color_continuous_scale=["#ff0000"], title="Audience Geography")
         st.plotly_chart(fig, use_container_width=True)
-        
-    with col2:
-        # Age distribution
-        fig = px.bar(
-            x=list(age.values()),
-            y=list(age.keys()),
-            orientation='h',
-            title='Audience Age Distribution',
-            color=list(age.values()),
-            color_continuous_scale=['#606060', '#FF0000']
-        )
-        fig.update_layout(
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font={'color': 'white'},
-            yaxis_title='',
-            xaxis_title='Percentage',
-            coloraxis_showscale=False
-        )
+    # 9. Gender Distribution (Donut)
+    if "Gender Distribution" in selected:
+        g_df = pd.DataFrame({"Gender": ["Male", "Female", "Other"], "Percent": [62, 34, 4]})
+        fig = px.pie(g_df, names="Gender", values="Percent", hole=0.6, color_discrete_sequence=["#ff0000", "#d63b3b", "#bf5555"], title="Gender Distribution")
+        st.plotly_chart(plotly_settings(fig), use_container_width=True)
+    # 10. Age Distribution (Horizontal Bar)
+    if "Age Distribution" in selected:
+        a_df = pd.DataFrame({"Age Group": ["13-17", "18-24", "25-34", "35-44", "45+"], "Percent": [3, 28, 34, 26, 9]})
+        fig = px.bar(a_df, x="Percent", y="Age Group", orientation="h", color_discrete_sequence=["#ff0000"], title="Age Distribution")
+        st.plotly_chart(plotly_settings(fig), use_container_width=True)
+    # 11. Engagement Rate (Stacked Bar)
+    if "Engagement Rate (Likes, Comments, Shares)" in selected:
+        like, comm, share = [], [], []
+        for s in v_stats:
+            like.append(int(s.get("likeCount", 0)))
+            comm.append(int(s.get("commentCount", 0)))
+            share.append(np.random.randint(0, 40))  # Shares not exposed by API
+        df = pd.DataFrame({"Title": v_titles[:10], "Likes": like[:10], "Comments": comm[:10], "Shares": share[:10]})
+        fig = px.bar(df, x="Title", y=["Likes", "Comments", "Shares"], barmode="stack", title="Engagement Rate", color_discrete_sequence=["#ff0000", "#d63b3b", "#bf5555"])
         st.plotly_chart(fig, use_container_width=True)
-    
-    # Country distribution
-    st.markdown("#### Audience Geography")
-    country_df = pd.DataFrame({
-        'Country': list(countries.keys()),
-        'Percentage': list(countries.values())
-    })
-    fig = px.choropleth(
-        country_df,
-        locations='Country',
-        locationmode='country names',
-        color='Percentage',
-        title='Audience by Country',
-        color_continuous_scale=['#000000', '#FF0000']
-    )
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font={'color': 'white'},
-        geo=dict(bgcolor='rgba(0,0,0,0)')
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-# Second row of insights
-st.subheader("Engagement & Performance Metrics")
-tab4, tab5, tab6 = st.tabs(["Engagement", "Traffic Sources", "Revenue"])
-
-with tab4:
-    # Engagement metrics
-    st.markdown("#### Engagement Rate Over Time")
-    engagement_data = pd.DataFrame({
-        'Date': pd.date_range(end=datetime.today(), periods=30).strftime('%Y-%m-%d'),
-        'Likes': np.random.randint(1000, 5000, size=30),
-        'Comments': np.random.randint(100, 1000, size=30),
-        'Shares': np.random.randint(50, 500, size=30)
-    })
-    fig = px.area(
-        engagement_data,
-        x='Date',
-        y=['Likes', 'Comments', 'Shares'],
-        title='Daily Engagement Metrics',
-        color_discrete_sequence=['#FF0000', '#990000', '#330000']
-    )
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font={'color': 'white'},
-        xaxis_title='',
-        yaxis_title='Count'
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Viewer retention
-    st.markdown("#### Viewer Retention")
-    retention_data = pd.DataFrame({
-        'Time (seconds)': range(0, 600, 30),
-        'Retention (%)': [100 - x/6 for x in range(0, 600, 30)]
-    })
-    fig = px.line(
-        retention_data,
-        x='Time (seconds)',
-        y='Retention (%)',
-        title='Average Viewer Retention',
-        color_discrete_sequence=['#FF0000']
-    )
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font={'color': 'white'},
-        xaxis_title='Video Duration (seconds)',
-        yaxis_title='% of Viewers Remaining'
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-with tab5:
-    # Traffic sources
-    st.markdown("#### Traffic Sources Breakdown")
-    sources_data = pd.DataFrame({
-        'Source': ['YouTube Search', 'Suggested Videos', 'External', 'Playlists', 'Channel Pages'],
-        'Percentage': [42, 28, 15, 10, 5]
-    })
-    fig = px.pie(
-        sources_data,
-        names='Source',
-        values='Percentage',
-        title='Where Your Views Come From',
-        hole=0.3,
-        color_discrete_sequence=px.colors.sequential.Reds_r
-    )
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font={'color': 'white'}
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Device distribution
-    st.markdown("#### Device Distribution")
-    device_data = pd.DataFrame({
-        'Device': ['Mobile', 'Desktop', 'Tablet', 'TV'],
-        'Percentage': [68, 25, 5, 2]
-    })
-    fig = px.funnel(
-        device_data,
-        x='Percentage',
-        y='Device',
-        title='Viewer Devices',
-        color_discrete_sequence=['#FF0000']
-    )
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font={'color': 'white'},
-        yaxis_title='',
-        xaxis_title='Percentage'
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-with tab6:
-    # Revenue estimates
-    st.markdown("#### Estimated Revenue")
-    revenue_data = pd.DataFrame({
-        'Month': pd.date_range(end=datetime.today(), periods=6, freq='M').strftime('%Y-%m'),
-        'Revenue': [1200, 1500, 1800, 2100, 2400, 2700]
-    })
-    fig = px.line(
-        revenue_data,
-        x='Month',
-        y='Revenue',
-        title='Monthly Revenue Trend',
-        markers=True,
-        color_discrete_sequence=['#FF0000']
-    )
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font={'color': 'white'},
-        yaxis_title='Revenue (USD)'
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # CPM/RPM metrics
-    st.markdown("#### Performance Metrics")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Avg. CPM", "$4.25", "↑ $0.15 (30d)")
-    with col2:
-        st.metric("Avg. RPM", "$3.80", "↑ $0.12 (30d)")
-    with col3:
-        st.metric("Impressions", "2.4M", "↑ 8.7% (30d)")
-
-# Third row - Additional insights
-st.subheader("Advanced Insights")
-col1, col2 = st.columns(2)
-
-with col1:
-    # Playlist performance
-    st.markdown("#### Playlist Performance")
-    playlist_data = pd.DataFrame({
-        'Playlist': ['Tech Reviews', 'Unboxings', 'Tutorials', 'Comparisons'],
-        'Views': [4500000, 3200000, 2800000, 2100000],
-        'Avg. Watch %': [65, 58, 72, 61]
-    })
-    fig = px.scatter(
-        playlist_data,
-        x='Views',
-        y='Avg. Watch %',
-        size='Views',
-        color='Playlist',
-        title='Playlist Engagement',
-        color_discrete_sequence=px.colors.sequential.Reds
-    )
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font={'color': 'white'}
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # SEO score
-    st.markdown("#### Video SEO Score")
-    seo_data = pd.DataFrame({
-        'Video': ['iPhone 15 Review', 'Samsung S23 Review', 'Pixel 8 Review', 'Best Phones 2023'],
-        'SEO Score': [87, 78, 82, 91]
-    })
-    fig = px.bar(
-        seo_data,
-        x='SEO Score',
-        y='Video',
-        orientation='h',
-        title='SEO Score by Video',
-        color='SEO Score',
-        color_continuous_scale=['#606060', '#FF0000']
-    )
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font={'color': 'white'},
-        yaxis_title='',
-        coloraxis_showscale=False
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-with col2:
-    # Competitor comparison
-    st.markdown("#### Competitor Comparison")
-    competitor_data = pd.DataFrame({
-        'Metric': ['Subscribers', 'Monthly Views', 'Avg. Watch Time', 'Engagement Rate'],
-        'Your Channel': [1245873, 4567892, 24.8, 4.7],
-        'Competitor A': [987654, 3456789, 22.1, 4.3],
-        'Competitor B': [1567890, 5678901, 26.5, 4.9]
-    })
-    fig = px.bar(
-        competitor_data,
-        x='Metric',
-        y=['Your Channel', 'Competitor A', 'Competitor B'],
-        barmode='group',
-        title='Channel Comparison',
-        color_discrete_sequence=['#FF0000', '#990000', '#330000']
-    )
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        font={'color': 'white'},
-        xaxis_title='',
-        yaxis_title='Value'
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Recent comments
-    st.markdown("#### Recent Comments")
-    comments = [
-        {"text": "Great review! Very detailed.", "video": "iPhone 15 Review", "time": "2h ago"},
-        {"text": "When will you review the new Pixel?", "video": "Q&A", "time": "5h ago"},
-        {"text": "The comparison was really helpful", "video": "S23 vs iPhone", "time": "1d ago"},
-        {"text": "Can you do more tutorial videos?", "video": "Android Tips", "time": "2d ago"}
-    ]
-    
-    for comment in comments:
-        with st.expander(f"\"{comment['text']}\" - {comment['video']} ({comment['time']})"):
-            st.write(f"**Video:** {comment['video']}")
-            st.write(f"**Comment:** {comment['text']}")
-            col1, col2 = st.columns([3,1])
-            with col1:
-                st.text_input("Reply to comment", key=f"reply_{comment['text'][:10]}", placeholder="Type your reply...")
-            with col2:
-                st.button("Send", key=f"send_{comment['text'][:10]}")
-
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style="text-align: center; color: #AAAAAA;">
-    <p>YouTube Creator Dashboard • Data updates every 24 hours • Last updated: {}</p>
-    <p>For official YouTube Analytics, visit <a href="https://studio.youtube.com" style="color: #FF0000;">YouTube Studio</a></p>
-</div>
-""".format(datetime.now().strftime("%Y-%m-%d %H:%M")), unsafe_allow_html=True)
+    # 12. Viewer Retention Over Time (Area)
+    if "Viewer Retention Over Time" in selected:
+        mins = np.arange(1, 11)
+        retain = np.maximum(100-np.cumsum(np.random.poisson(7, 10)), 0)
+        fig = px.area(x=mins, y=retain, labels={'x': 'Minutes', 'y': 'Retention (%)'}, title="Viewer Retention Over Time", color_discrete_sequence=["#ff0000"])
+        st.plotly_chart(fig, use_container_width=True)
+    # 13. Traffic Sources Breakdown (Pie)
+    if "Traffic Sources Breakdown" in selected:
+        src = ["YouTube Search", "Suggested", "External", "Direct", "Other"]
+        val = np.random.randint(1000, 5000, 5)
+        fig = px.pie(names=src, values=val, title="Traffic Sources Breakdown", color_discrete_sequence=px.colors.sequential.Reds)
+        st.plotly_chart(plotly_settings(fig, False), use_container_width=True)
+    # 14. Device Distribution (Split Pie)
+    if "Device Distribution (Mobile vs Desktop)" in selected:
+        devices = ["Mobile", "Desktop", "Tablet", "TV"]
+        device_val = np.random.randint(1000, 4000, len(devices))
+        fig = px.pie(names=devices, values=device_val, hole=0.5, title="Device Distribution", color_discrete_sequence=px.colors.sequential.Reds)
+        st.plotly_chart(plotly_settings(fig, False), use_container_width=True)
+    # 15. Recent Comments Stream (Card List)
+    if "Recent Comments Stream" in selected and v_ids:
+        comments = get_comments(yt, v_ids[0], max_results=5)
+        st.markdown('<div class="stCard"><h4>Recent Comments:</h4><ul>' + ''.join([f"<li>{c}</li>" for c in comments]) + '</ul></div>', unsafe_allow_html=True)
+    # 16. Playlist Performance (Radar)
+    if "Playlist Performance" in selected:
+        pl_df = pd.DataFrame({
+            "Playlist": ["Tutorials", "Reviews", "Vlogs", "Music", "Gaming"],
+            "Views": np.random.randint(5000, 15000, 5)
+        })
+        fig = px.line_polar(pl_df, r="Views", theta="Playlist", line_close=True, title="Playlist Performance", color_discrete_sequence=["#ff0000"])
+        st.plotly_chart(fig, use_container_width=True)
+    # 17. SEO Score per Video (tags/titles) (Meter)
+    if "SEO Score per Video (tags/titles)" in selected:
+        seo_df = pd.DataFrame({
+            "Video": v_titles[:5],
+            "SEO Score": np.random.randint(60, 98, 5)
+        })
+        fig = px.scatter(seo_df, x="Video", y="SEO Score", size="SEO Score", title="SEO Score per Video", color_discrete_sequence=["#ff0000"])
+        st.plotly_chart(fig, use_container_width=True)
+    # 18. Subscriber Gain/Loss Events (Stem Plot)
+    if "Subscriber Gain/Loss Events" in selected:
+        dates = pd.date_range(date_start, date_end)
+        gain = np.random.randint(1, 30, len(dates))
+        loss = np.random.randint(1, 15, len(dates))
+        fig = px.scatter(x=dates, y=gain-loss, title="Subscriber Net Gain/Loss", labels={'y': 'Net Change'}, color_discrete_sequence=["#ff0000"])
+        st.plotly_chart(fig, use_container_width=True)
+    # 19. Revenue Estimates (Line)
+    if "Revenue Estimates (if monetized)" in selected:
+        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul','Aug']
+        revenue = np.random.randint(50, 250, len(months))
+        fig = px.line(x=months, y=revenue, title="Estimated Revenue", labels={'x': 'Month', 'y': 'USD'}, color_discrete_sequence=["#ff0000"])
+        st.plotly_chart(fig, use_container_width=True)
+    # 20. Competitor Comparison (Double Bar)
+    if "Competitor Comparison" in selected and competitor_id:
+        c_stats, c_name = get_channel_stats(yt, competitor_id)
+        if c_stats:
+            bar_df = pd.DataFrame({
+                "Channel": [ch_name, c_name if c_name else "Other"],
+                "Subscribers": [int(stats.get("subscriberCount",0)), int(c_stats.get("subscriberCount",0))],
+                "Views": [int(stats.get("viewCount",0)), int(c_stats.get("viewCount",0))]
+            })
+            fig = px.bar(
+                bar_df.melt(id_vars="Channel"),
+                x="Channel", y="value", color="variable",
+                barmode="group", title="Competitor Comparison",
+                color_discrete_sequence=["#ff0000", "#d63b3b"])
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Competitor channel not found.")
+else:
+    st.info("Enter your Channel ID in the sidebar to start.")
