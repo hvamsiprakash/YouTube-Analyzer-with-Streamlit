@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from io import BytesIO
 
-API_KEY = "AIzaSyDGV_rw-styH4jKBMRr4fcX2-78jc79D3Q"
+API_KEY = "AIzaSyDz8r5kvSnlkdQTyeEMS4hn0EMpXfUV1ig"
 
 st.set_page_config(
     page_title="YouTube Channel Insights",
