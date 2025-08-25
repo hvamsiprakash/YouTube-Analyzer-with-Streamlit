@@ -9,11 +9,9 @@ import isodate
 # -------------------------------
 API_KEY = "AIzaSyDz8r5kvSnlkdQTyeEMS4hn0EMpXfUV1ig"
 
-
 st.set_page_config(
-    page_title="YouTube Analytics Dashboard",
+    page_title="YouTube Advanced Analytics",
     layout="wide",
-    page_icon=None,
     initial_sidebar_state="collapsed"
 )
 
@@ -23,14 +21,14 @@ st.set_page_config(
 st.markdown("""
     <style>
     .stApp {
-        background-color: #000 !important;
+        background-color: #000000 !important;
         color: white !important;
     }
     .card {
-        background-color: #111;
+        background-color: #1a1a1a;
         padding: 1rem;
-        margin: 0.5rem;
-        border-radius: 10px;
+        margin: 0.6rem;
+        border-radius: 12px;
     }
     h1, h2, h3, h4, h5 {
         color: white !important;
@@ -39,9 +37,15 @@ st.markdown("""
         color: white !important;
     }
     .stPlotlyChart {
-        background: #111;
+        background: #1a1a1a;
         border-radius: 10px;
         padding: 0.5rem;
+    }
+    .plotly .xtick text, .plotly .ytick text {
+        fill: white !important;
+    }
+    .plotly .axis-title {
+        fill: white !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -59,25 +63,24 @@ def fetch_channel(channel_id):
     res = req.execute()
     if res["items"]:
         return res["items"][0]
-    else:
-        return None
+    return None
 
 @st.cache_data(ttl=1800)
 def fetch_all_videos(uploads_playlist_id, max_results=300):
     yt = get_youtube_client()
     videos = []
-    nextPageToken = None
+    nextToken = None
     while len(videos) < max_results:
         req = yt.playlistItems().list(
             part="snippet,contentDetails",
             playlistId=uploads_playlist_id,
             maxResults=min(50, max_results - len(videos)),
-            pageToken=nextPageToken
+            pageToken=nextToken
         )
         res = req.execute()
         videos += res["items"]
-        nextPageToken = res.get("nextPageToken")
-        if not nextPageToken:
+        nextToken = res.get("nextPageToken")
+        if not nextToken:
             break
     return [item["contentDetails"]["videoId"] for item in videos]
 
@@ -107,29 +110,11 @@ def fetch_video_details(video_ids):
             })
     return pd.DataFrame(all_video)
 
-@st.cache_data(ttl=1800)
-def fetch_playlists(channel_id):
-    yt = get_youtube_client()
-    playlists = []
-    nextPageToken = None
-    while True:
-        req = yt.playlists().list(
-            part="snippet,contentDetails",
-            channelId=channel_id,
-            maxResults=50,
-            pageToken=nextPageToken
-        )
-        res = req.execute()
-        playlists.extend(res["items"])
-        nextPageToken = res.get("nextPageToken")
-        if not nextPageToken:
-            break
-    return playlists
-
+import isodate
 def parse_duration(duration):
     try:
         td = isodate.parse_duration(duration)
-        return td.total_seconds() / 60  # in minutes
+        return td.total_seconds() / 60
     except:
         return 0
 
@@ -138,168 +123,139 @@ custom_reds = ["#ff0000", "#d70000", "#c60000", "#b70000", "#9b0000"]
 # -------------------------------
 # APP
 # -------------------------------
-st.title("YouTube Analytics Dashboard")
+st.title("YouTube Advanced Analytics")
 
 channel_id = st.text_input("Enter YouTube Channel ID")
 
 if channel_id:
     channel = fetch_channel(channel_id)
     if not channel:
-        st.error("Channel not found. Check Channel ID.")
+        st.error("Channel not found.")
     else:
         uploads_pid = channel["contentDetails"]["relatedPlaylists"]["uploads"]
         video_ids = fetch_all_videos(uploads_pid, max_results=300)
-        df_vid = fetch_video_details(video_ids)
-        playlists = fetch_playlists(channel_id)
+        df = fetch_video_details(video_ids)
 
-        # Preprocessing
-        df_vid["DurationMin"] = df_vid["Duration"].map(parse_duration)
-        df_vid["PublishedDate"] = pd.to_datetime(df_vid["PublishedAt"], errors="coerce")
-        df_vid["Month"] = df_vid["PublishedDate"].dt.strftime("%Y-%m")
-        df_vid["Year"] = df_vid["PublishedDate"].dt.year
-        df_vid["DayOfWeek"] = df_vid["PublishedDate"].dt.day_name()
+        if not df.empty:
+            # Preprocessing
+            df["DurationMin"] = df["Duration"].map(parse_duration)
+            df["PublishedDate"] = pd.to_datetime(df["PublishedAt"], errors="coerce")
+            df["Month"] = df["PublishedDate"].dt.strftime("%Y-%m")
+            df["Year"] = df["PublishedDate"].dt.year
+            df["DayOfWeek"] = df["PublishedDate"].dt.day_name()
+            df["Hour"] = df["PublishedDate"].dt.hour
 
-        # -------------------
-        # GLOBAL DATE FILTER
-        # -------------------
-        if not df_vid.empty:
-            min_date, max_date = df_vid["PublishedDate"].min().date(), df_vid["PublishedDate"].max().date()
-            st.markdown("### Filter by Date Range")
-            start_date, end_date = st.date_input("Select Range", [min_date, max_date])
-            if isinstance(start_date, list):  # streamlit bug patch
-                start_date, end_date = start_date[0], start_date[1]
-            df_vid = df_vid[(df_vid["PublishedDate"].dt.date >= start_date) & (df_vid["PublishedDate"].dt.date <= end_date)]
+            # Channel KPIs
+            st.markdown("<div class='card'><h2>Channel Stats</h2></div>", unsafe_allow_html=True)
+            col1, col2, col3, col4 = st.columns(4)
+            with col1: st.metric("Subscribers", f"{int(channel['statistics']['subscriberCount']):,}")
+            with col2: st.metric("Total Views", f"{int(channel['statistics']['viewCount']):,}")
+            with col3: st.metric("Total Videos", f"{int(channel['statistics']['videoCount']):,}")
+            with col4: st.metric("Video Uploads Fetched", f"{len(df):,}")
 
-        # -------------------
-        # CHANNEL OVERVIEW
-        # -------------------
-        st.markdown("<div class='card'><h2>Channel Overview</h2></div>", unsafe_allow_html=True)
-        cols = st.columns(5)
-        with cols[0]:
-            st.image(channel["snippet"]["thumbnails"]["high"]["url"], width=100)
-        with cols[1]:
-            st.metric("Subscribers", f"{int(channel['statistics']['subscriberCount']):,}")
-        with cols[2]:
-            st.metric("Total Views", f"{int(channel['statistics']['viewCount']):,}")
-        with cols[3]:
-            st.metric("Total Videos", f"{int(channel['statistics']['videoCount']):,}")
-        if playlists:
-            with cols[4]:
-                st.metric("Playlists", f"{len(playlists):,}")
-
-        st.markdown(f"<div class='card'><b>Description:</b> {channel['snippet'].get('description','No description')}</div>", unsafe_allow_html=True)
-
-        if not df_vid.empty:
             # -------------------
-            # INSIGHTS (3 per row)
+            # ROW 1
             # -------------------
-            # Row 1
-            c1, c2, c3 = st.columns(3)
+            c1, c2 = st.columns(2)
             with c1:
                 st.markdown("<div class='card'><h3>Uploads by Month</h3>", unsafe_allow_html=True)
-                up_month = df_vid["Month"].value_counts().sort_index()
-                fig = px.bar(x=up_month.index, y=up_month.values,
-                             color=up_month.values, color_continuous_scale=custom_reds,
-                             labels={"x": "Month", "y": "Uploads"})
+                fig = px.bar(df.groupby("Month").size().reset_index(name="Uploads"),
+                             x="Month", y="Uploads", color="Uploads",
+                             color_continuous_scale=custom_reds)
                 st.plotly_chart(fig, use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
-
             with c2:
-                st.markdown("<div class='card'><h3>Top Videos by Views</h3>", unsafe_allow_html=True)
-                top_vids = df_vid.sort_values("Views", ascending=False).head(10)
-                fig = px.bar(top_vids, x="Views", y="Title", orientation="h",
-                             color="Views", color_continuous_scale=custom_reds)
-                st.plotly_chart(fig, use_container_width=True)
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            with c3:
-                st.markdown("<div class='card'><h3>Top Videos by Likes</h3>", unsafe_allow_html=True)
-                top_likes = df_vid.sort_values("Likes", ascending=False).head(10)
-                fig = px.bar(top_likes, x="Likes", y="Title", orientation="h",
-                             color="Likes", color_continuous_scale=custom_reds)
-                st.plotly_chart(fig, use_container_width=True)
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            # Row 2 - Better Insights
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                st.markdown("<div class='card'><h3>Views & Likes Over Time</h3>", unsafe_allow_html=True)
-                grouped = df_vid.groupby("Month")[["Views", "Likes"]].sum().reset_index()
-                fig = px.line(grouped, x="Month", y=["Views", "Likes"],
-                              markers=True, color_discrete_sequence=custom_reds[:2])
-                st.plotly_chart(fig, use_container_width=True)
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            with c2:
-                st.markdown("<div class='card'><h3>Views by Day of Week</h3>", unsafe_allow_html=True)
-                views_day = df_vid.groupby("DayOfWeek")["Views"].sum().reindex(
+                st.markdown("<div class='card'><h3>Average Views by Day of Week</h3>", unsafe_allow_html=True)
+                avg_views = df.groupby("DayOfWeek")["Views"].mean().reindex(
                     ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"])
-                fig = px.bar(x=views_day.index, y=views_day.values,
-                             color=views_day.values, color_continuous_scale=custom_reds)
+                fig = px.bar(x=avg_views.index, y=avg_views.values, color=avg_views.values,
+                             color_continuous_scale=custom_reds, labels={"x":"Day","y":"Avg Views"})
                 st.plotly_chart(fig, use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
 
-            with c3:
-                st.markdown("<div class='card'><h3>Engagement Rate (Likes+Comments per View)</h3>", unsafe_allow_html=True)
-                df_vid["EngagementRate"] = (df_vid["Likes"] + df_vid["Comments"]) / df_vid["Views"].replace(0,1)
-                fig = px.scatter(df_vid, x="Views", y="EngagementRate", size="Likes",
-                                 hover_name="Title", color="EngagementRate", color_continuous_scale=custom_reds)
-                st.plotly_chart(fig, use_container_width=True)
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            # Row 3
+            # -------------------
+            # ROW 2
+            # -------------------
             c1, c2, c3 = st.columns(3)
             with c1:
-                st.markdown("<div class='card'><h3>Comments Over Time</h3>", unsafe_allow_html=True)
-                comments_time = df_vid.groupby("Month")["Comments"].sum().reset_index()
-                fig = px.area(comments_time, x="Month", y="Comments",
-                              color_discrete_sequence=[custom_reds[0]])
+                st.markdown("<div class='card'><h3>Top N Videos by Views</h3>", unsafe_allow_html=True)
+                top_n = st.slider("Select Top N", 5, 20, 10, key="topn_views")
+                top_vids = df.sort_values("Views", ascending=False).head(top_n)
+                fig = px.bar(top_vids, x="Views", y="Title", orientation="h", color="Views",
+                             color_continuous_scale=custom_reds)
+                st.plotly_chart(fig, use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+            with c2:
+                st.markdown("<div class='card'><h3>Top N Videos by Engagement (Likes+Comments)</h3>", unsafe_allow_html=True)
+                top_eng = df.assign(Engagement=df["Likes"]+df["Comments"]).sort_values("Engagement", ascending=False).head(10)
+                fig = px.bar(top_eng, x="Engagement", y="Title", orientation="h", color="Engagement",
+                             color_continuous_scale=custom_reds)
+                st.plotly_chart(fig, use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+            with c3:
+                st.markdown("<div class='card'><h3>Average Video Duration Over Time</h3>", unsafe_allow_html=True)
+                dur_time = df.groupby("Month")["DurationMin"].mean().reset_index()
+                fig = px.line(dur_time, x="Month", y="DurationMin", markers=True, color_discrete_sequence=[custom_reds[2]])
                 st.plotly_chart(fig, use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
 
+            # -------------------
+            # ROW 3
+            # -------------------
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("<div class='card'><h3>Likes vs Views (Correlation)</h3>", unsafe_allow_html=True)
+                fig = px.scatter(df, x="Views", y="Likes", trendline="ols", color="Likes",
+                                 color_continuous_scale=custom_reds, hover_name="Title")
+                st.plotly_chart(fig, use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
             with c2:
+                st.markdown("<div class='card'><h3>Comments Trend Over Time</h3>", unsafe_allow_html=True)
+                com_time = df.groupby("Month")["Comments"].sum().reset_index()
+                fig = px.area(com_time, x="Month", y="Comments", color_discrete_sequence=[custom_reds[1]])
+                st.plotly_chart(fig, use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            # -------------------
+            # ROW 4
+            # -------------------
+            c1, c2, c3 = st.columns(3)
+            with c1:
                 st.markdown("<div class='card'><h3>Cumulative Views Growth</h3>", unsafe_allow_html=True)
-                growth_df = df_vid.sort_values("PublishedDate")
+                growth_df = df.sort_values("PublishedDate").copy()
                 growth_df["CumulativeViews"] = growth_df["Views"].cumsum()
                 fig = px.area(growth_df, x="PublishedDate", y="CumulativeViews",
-                              color_discrete_sequence=[custom_reds[2]])
-                st.plotly_chart(fig, use_container_width=True)
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            with c3:
-                st.markdown("<div class='card'><h3>Cumulative Likes Growth</h3>", unsafe_allow_html=True)
-                likes_df = df_vid.sort_values("PublishedDate")
-                likes_df["CumulativeLikes"] = likes_df["Likes"].cumsum()
-                fig = px.line(likes_df, x="PublishedDate", y="CumulativeLikes",
                               color_discrete_sequence=[custom_reds[3]])
                 st.plotly_chart(fig, use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
-
-            # Row 4: Tables
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                st.markdown("<div class='card'><h3>Playlists</h3>", unsafe_allow_html=True)
-                pl = pd.DataFrame([{
-                    "Title": p["snippet"]["title"],
-                    "VideoCount": p["contentDetails"].get("itemCount", "N/A")
-                } for p in playlists])
-                st.dataframe(pl)
-                st.markdown("</div>", unsafe_allow_html=True)
-
             with c2:
-                st.markdown("<div class='card'><h3>Most Engaged Videos</h3>", unsafe_allow_html=True)
-                most_engaged = df_vid.assign(TotalEngagement=lambda x: x["Likes"] + x["Comments"])
-                st.dataframe(most_engaged.sort_values("TotalEngagement", ascending=False)[
-                    ["Title", "TotalEngagement", "Likes", "Comments", "Views", "PublishedDate"]
-                ].head(10))
+                st.markdown("<div class='card'><h3>Publishing Hour Analysis</h3>", unsafe_allow_html=True)
+                hour_views = df.groupby("Hour")["Views"].mean().reset_index()
+                fig = px.bar(hour_views, x="Hour", y="Views", color="Views",
+                             color_continuous_scale=custom_reds)
+                st.plotly_chart(fig, use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
-
             with c3:
-                st.markdown("<div class='card'><h3>Video Durations vs Views</h3>", unsafe_allow_html=True)
-                fig = px.scatter(df_vid, x="DurationMin", y="Views", size="Likes",
-                                 color="Views", color_continuous_scale=custom_reds, hover_name="Title")
+                st.markdown("<div class='card'><h3>Engagement Rate Distribution</h3>", unsafe_allow_html=True)
+                df["EngagementRate"] = (df["Likes"]+df["Comments"])/(df["Views"].replace(0,1))
+                fig = px.histogram(df, x="EngagementRate", nbins=20, color_discrete_sequence=[custom_reds[4]])
                 st.plotly_chart(fig, use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
 
-else:
-    st.info("Enter a valid YouTube Channel ID to see analytics.")
+            # -------------------
+            # ROW 5
+            # -------------------
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("<div class='card'><h3>Most Engaged Videos Table</h3>", unsafe_allow_html=True)
+                most_eng = df.assign(TotalEngagement=lambda x:x["Likes"]+x["Comments"])
+                st.dataframe(most_eng.sort_values("TotalEngagement", ascending=False)[
+                    ["Title","Likes","Comments","Views","TotalEngagement","PublishedDate"]
+                ].head(10))
+                st.markdown("</div>", unsafe_allow_html=True)
+            with c2:
+                st.markdown("<div class='card'><h3>Views vs Duration</h3>", unsafe_allow_html=True)
+                fig = px.scatter(df, x="DurationMin", y="Views", color="Views",
+                                 color_continuous_scale=custom_reds, hover_name="Title")
+                st.plotly_chart(fig, use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
