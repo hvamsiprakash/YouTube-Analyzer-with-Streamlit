@@ -9,7 +9,7 @@ import isodate
 # ===================================
 # CONFIG
 # ===================================
-API_KEY = "YOUR_API_KEY"   # Replace with your API key
+API_KEY = "AIzaSyDz8r5kvSnlkdQTyeEMS4hn0EMpXfUV1ig"   # Replace with your API key
 
 st.set_page_config(
     page_title="YouTube BI Dashboard",
