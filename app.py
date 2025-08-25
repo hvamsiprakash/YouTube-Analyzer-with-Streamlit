@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import isodate
+from datetime import datetime
 
 # --------- API KEY ---------
 API_KEY = "AIzaSyDz8r5kvSnlkdQTyeEMS4hn0EMpXfUV1ig"
@@ -107,11 +108,17 @@ if channel_id:
             st.warning("No video data found.")
         else:
             # Preprocess
+            # Convert PublishedAt to datetime with errors coerced
             df["PublishedDate"] = pd.to_datetime(df["PublishedAt"], errors='coerce')
             df["DurationMin"] = df["Duration"].map(parse_duration)
             df["Month"] = df["PublishedDate"].dt.strftime("%Y-%m")
             df["DayOfWeek"] = df["PublishedDate"].dt.day_name()
-            df["DaysSince"] = (pd.Timestamp.today() - df["PublishedDate"]).dt.days
+
+            # Fix DaysSince calculation with timezone naive datetime
+            today = pd.Timestamp(datetime.utcnow()).normalize()
+            # Replace NaT with today's date to avoid errors; could also drop or fill differently
+            df["PublishedDateClean"] = df["PublishedDate"].fillna(today)
+            df["DaysSince"] = (today - df["PublishedDateClean"]).dt.days
 
             # ----------- Dashboard Cards ----------
             st.markdown("<div class='card'>", unsafe_allow_html=True)
@@ -124,9 +131,10 @@ if channel_id:
 
             # ---------- Insight 1: Upload Consistency ----------
             st.markdown("<div class='card'><h3>📅 Upload Consistency</h3>", unsafe_allow_html=True)
-            uploads_per_week = df.groupby(df["PublishedDate"].dt.to_period("W")).size()
+            uploads_per_week = df.groupby(df["PublishedDateClean"].dt.to_period("W")).size()
             fig = px.line(uploads_per_week, markers=True, color_discrete_sequence=["#ff0000"])
-            fig.update_layout(plot_bgcolor="#111", paper_bgcolor="#111", font_color="white")
+            fig.update_layout(plot_bgcolor="#111", paper_bgcolor="#111", font_color="white",
+                              xaxis_title="Week", yaxis_title="Uploads")
             st.plotly_chart(fig, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -156,25 +164,26 @@ if channel_id:
             st.markdown("<div class='card'><h3>📈 Video Longevity (Views vs Age)</h3>", unsafe_allow_html=True)
             longevity = px.scatter(df, x="DaysSince", y="Views", size="Likes", color="Comments",
                                    hover_name="Title", color_continuous_scale="reds")
-            longevity.update_layout(paper_bgcolor="#111", font_color="white")
+            longevity.update_layout(paper_bgcolor="#111", font_color="white",
+                                   xaxis_title="Days Since Published", yaxis_title="Views")
             st.plotly_chart(longevity, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
             # ---------- Insight 5: Rolling Growth ----------
-            st.markdown("<div class='card'><h3>📊 Rolling 30-day Growth</h3>", unsafe_allow_html=True)
+            st.markdown("<div class='card'><h3>📊 Rolling 3-month Growth (Views, Likes, Comments)</h3>", unsafe_allow_html=True)
             monthly = df.groupby("Month")[["Views", "Likes", "Comments"]].sum().rolling(3).mean()
-            fig = px.line(monthly, markers=True, color_discrete_sequence=["#ff0000", "#d70000", "#9b0000"])
-            fig.update_layout(paper_bgcolor="#111", font_color="white")
-            st.plotly_chart(fig, use_container_width=True)
+            fig2 = px.line(monthly, markers=True, color_discrete_sequence=["#ff0000", "#d70000", "#9b0000"])
+            fig2.update_layout(paper_bgcolor="#111", font_color="white", xaxis_title="Month", yaxis_title="Average")
+            st.plotly_chart(fig2, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
-            # ---------- Insight 6: Playlist Impact ----------
-            st.markdown("<div class='card'><h3>📂 Playlist Impact (Top Videos)</h3>", unsafe_allow_html=True)
+            # ---------- Insight 6: Top Videos ----------
+            st.markdown("<div class='card'><h3>🔥 Top 10 Videos by Views</h3>", unsafe_allow_html=True)
             top_vids = df.sort_values("Views", ascending=False).head(10)
-            playlist_fig = px.bar(top_vids, x="Views", y="Title", orientation="h",
-                                  color="Views", color_continuous_scale="reds")
-            playlist_fig.update_layout(paper_bgcolor="#111", font_color="white")
-            st.plotly_chart(playlist_fig, use_container_width=True)
+            bar_fig = px.bar(top_vids, x="Views", y="Title", orientation="h",
+                             color="Views", color_continuous_scale="reds", text="Views")
+            bar_fig.update_layout(paper_bgcolor="#111", font_color="white", yaxis={'autorange':'reversed'})
+            st.plotly_chart(bar_fig, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
     else:
