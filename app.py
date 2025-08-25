@@ -3,27 +3,18 @@ from googleapiclient.discovery import build
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 import isodate
 
-# ========================
-# API CONFIG
-# ========================
-API_KEY = "AIzaSyDz8r5kvSnlkdQTyeEMS4hn0EMpXfUV1ig"  # Replace with your API key
+API_KEY = "AIzaSyDz8r5kvSnlkdQTyeEMS4hn0EMpXfUV1ig" # Replace with your YouTube API key
 
-st.set_page_config(
-    page_title="YouTube Advanced BI Dashboard",
-    layout="wide",
-    page_icon="🎥"
-)
+st.set_page_config(page_title="Advanced YouTube BI Dashboard", layout="wide", page_icon="🎥")
 
-# ========================
-# THEME (POWERBI STYLE)
-# ========================
 st.markdown("""
     <style>
-    .stApp { background-color: #000000 !important; color: #FFFFFF; }
-    h1, h2, h3, h4, h5, h6, .stMarkdown { color: #FFFFFF !important; }
-    [data-testid="stSidebar"] { background-color: #111111 !important; }
+    .stApp { background-color: #000 !important; color: #fff; }
+    h1, h2, h3, h4, h5, h6, .stMarkdown { color: #fff !important; }
+    [data-testid="stSidebar"] { background-color: #111 !important; }
     div[data-testid="stMetricValue"], div[data-testid="stMetricLabel"] { color: white; }
     .stDataFrame td { color: white !important; }
     </style>
@@ -31,9 +22,7 @@ st.markdown("""
 
 red_palette = ['#ff0000','#d70000','#c60000','#b70000','#9b0000']
 
-# ========================
-# API HELPERS
-# ========================
+# --- API helpers
 def get_youtube_client():
     return build("youtube", "v3", developerKey=API_KEY)
 
@@ -108,7 +97,7 @@ def fetch_playlists(channel_id):
 def parse_duration(duration):
     try:
         td = isodate.parse_duration(duration)
-        return td.total_seconds() / 60  # in minutes
+        return td.total_seconds() / 60  # minutes
     except:
         return 0
 
@@ -117,132 +106,99 @@ category_map = {
     "24": "Entertainment", "25": "News", "26": "Howto", "27": "Education", "28": "Science"
 }
 
-# ========================
-# DASHBOARD
-# ========================
 st.sidebar.title("📡 Channel Input")
-channel_id = st.sidebar.text_input("Enter YouTube Channel ID")
+channel_id = st.sidebar.text_input("Paste YouTube Channel ID")
 
 if channel_id:
     channel = fetch_channel(channel_id)
     if not channel:
         st.error("❌ Channel not found.")
     else:
-        st.title(f"📊 YouTube BI Dashboard — {channel['snippet']['title']}")
         uploads_pid = channel["contentDetails"]["relatedPlaylists"]["uploads"]
         video_ids = fetch_all_videos(uploads_pid, max_results=300)
         df = fetch_video_details(video_ids)
         playlists = fetch_playlists(channel_id)
 
-        # --------------------
-        # PREPROCESS
-        # --------------------
         df["DurationMin"] = df["Duration"].map(parse_duration)
-        df["PublishedDate"] = pd.to_datetime(df["PublishedAt"], errors="coerce")
+        df["PublishedDate"] = pd.to_datetime(df["PublishedAt"], errors='coerce')
         df["Month"] = df["PublishedDate"].dt.strftime("%Y-%m")
         df["DayOfWeek"] = df["PublishedDate"].dt.day_name()
-        df["Hour"] = df["PublishedDate"].dt.hour
         df["Year"] = df["PublishedDate"].dt.year
         df["Category"] = df["CategoryId"].map(lambda x: category_map.get(x, "Other"))
-
-        # Ratios for CTR proxy & engagement
         df["CTR_Proxy"] = ((df["Likes"]+df["Comments"]) / df["Views"].replace(0, np.nan)).fillna(0)
         df["LikePerView"] = (df["Likes"] / df["Views"].replace(0, np.nan)).fillna(0)
         df["CommentPerView"] = (df["Comments"] / df["Views"].replace(0, np.nan)).fillna(0)
-        df["LikePerMinute"] = (df["Likes"] / df["DurationMin"].replace(0, np.nan)).fillna(0)
 
-        # --------------------
-        # CHANNEL METRICS
-        # --------------------
-        c1,c2,c3,c4,c5 = st.columns(5)
-        with c1: st.image(channel["snippet"]["thumbnails"]["high"]["url"], width=100)
-        with c2: st.metric("Subscribers", f"{int(channel['statistics']['subscriberCount']):,}")
-        with c3: st.metric("Total Views", f"{int(channel['statistics']['viewCount']):,}")
-        with c4: st.metric("Videos", f"{int(channel['statistics']['videoCount']):,}")
-        with c5: st.metric("Playlists", f"{len(playlists):,}")
-
+        # ---- Metric tiles
+        st.markdown(f"<h2 style='color:#ff0000'>Advanced YouTube BI Dashboard — <span style='color:#fff'>{channel['snippet']['title']}</span></h2>",unsafe_allow_html=True)
+        col_img, col_sub, col_views, col_vid, col_pl = st.columns([1,1,1,1,1])
+        with col_img: st.image(channel["snippet"]["thumbnails"]["high"]["url"], width=90)
+        with col_sub: st.metric("Subscribers", f"{int(channel['statistics']['subscriberCount']):,}")
+        with col_views: st.metric("Total Views", f"{int(channel['statistics']['viewCount']):,}")
+        with col_vid: st.metric("Videos", f"{int(channel['statistics']['videoCount']):,}")
+        with col_pl: st.metric("Playlists", f"{len(playlists):,}")
         st.write("---")
 
-        # ========================
-        # INSIGHTS
-        # ========================
-
-        # 1. Subscriber Growth Approximation
-        st.markdown("### 📈 Subscriber Growth Trend (Approx)")
-        subs_df = df.groupby("Month")["Views"].sum().reset_index()
-        # distribute subscriber count over time ~ proportional to views
-        total_views = subs_df["Views"].sum()
-        subs_df["Subscribers"] = (subs_df["Views"] / total_views) * int(channel["statistics"]["subscriberCount"])
-        subs_df["SubscribersCumulative"] = subs_df["Subscribers"].cumsum()
-        fig = px.line(subs_df, x="Month", y="SubscribersCumulative", markers=True,
-                      color_discrete_sequence=[red_palette[0]],
-                      title="Estimated Subscriber Growth over Time")
-        st.plotly_chart(fig, use_container_width=True)
-
-        # 2. CTR Proxy over time
-        st.markdown("### 🎯 CTR Proxy Trend (Likes+Comments per View)")
-        ctr_trend = df.groupby("Month")["CTR_Proxy"].mean().reset_index()
-        fig = px.area(ctr_trend, x="Month", y="CTR_Proxy", color_discrete_sequence=[red_palette[1]],
-                      title="CTR Proxy (Avg per Month)")
-        st.plotly_chart(fig, use_container_width=True)
-
-        # 3. Engagement by Category
-        st.markdown("### 🗂 Engagement by Category")
-        cat_df = df.groupby("Category")[["Likes","Comments"]].sum().reset_index()
-        fig = px.treemap(cat_df, path=["Category"], values="Likes",
-                         color="Comments", color_continuous_scale=red_palette,
-                         title="Engagement Breakdown by Category (Size=Likes, Color=Comments)")
-        st.plotly_chart(fig, use_container_width=True)
-
-        # 4. Views vs Upload Frequency
-        st.markdown("### ⚡ Upload Frequency vs Monthly Views")
-        freq_df = df.groupby("Month").agg(Uploads=("Video ID","count"), Views=("Views","sum")).reset_index()
-        fig = px.bar(freq_df, x="Month", y="Views", color="Uploads", 
-                     color_continuous_scale=red_palette,
-                     title="Views vs Upload Frequency per Month")
-        st.plotly_chart(fig, use_container_width=True)
-
-        # 5. Engagement Rate Over Time
-        st.markdown("### 🔥 Audience Engagement Trend")
-        eng_df = df.groupby("Month")[["LikePerView","CommentPerView"]].mean().reset_index()
-        fig = px.line(eng_df, x="Month", y=["LikePerView","CommentPerView"],
-                      markers=True, color_discrete_sequence=red_palette,
-                      title="Engagement Ratios over Time")
-        st.plotly_chart(fig, use_container_width=True)
-
-        # 6. Retention Proxy
-        st.markdown("### ⏱ Retention Proxy (Likes per Minute of Video)")
-        retention_df = df.groupby("Month")["LikePerMinute"].mean().reset_index()
-        fig = px.bar(retention_df, x="Month", y="LikePerMinute", 
-                     color="LikePerMinute", color_continuous_scale=red_palette,
-                     title="Retention Proxy Trend (Likes / Minute)")
-        st.plotly_chart(fig, use_container_width=True)
-
-        # 7. Playlist Contribution
-        st.markdown("### 📂 Playlist Contribution Share")
-        pl_df = pd.DataFrame([{
-            "Title": p["snippet"]["title"],
-            "VideoCount": p["contentDetails"].get("itemCount", 0)
-        } for p in playlists])
-        if not pl_df.empty:
-            fig = px.pie(pl_df, names="Title", values="VideoCount", 
-                         color_discrete_sequence=red_palette,
-                         title="Playlist Contribution Share (by Video Count)")
+        # --------- Sunburst: Category > Video > Likes ----------
+        st.markdown("### 🌞 Engagement Sunburst (Category → Video → Comments)")
+        sb_year = st.selectbox("Filter Sunburst Year", sorted(df["Year"].dropna().unique()))
+        sub_df = df[df["Year"] == sb_year]
+        sb_data = sub_df[["Category", "Title", "Comments"]]
+        sb_data = sb_data[sb_data["Comments"] > 0]
+        if not sb_data.empty:
+            fig = px.sunburst(sb_data, path=["Category", "Title"], values="Comments",
+                              color="Comments", color_continuous_scale=red_palette,
+                              title="Comments Distribution (Sunburst)")
             st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No comments for selected year.")
 
-        # 8. Best Day to Publish
-        st.markdown("### 📅 Average Views by Day of Week")
-        dow = df.groupby("DayOfWeek")["Views"].mean().reindex(
-            ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-        ).reset_index()
-        fig = px.bar(dow, x="DayOfWeek", y="Views", color="Views", 
-                     color_continuous_scale=red_palette,
-                     title="Average Views by Day of Week")
+        # --------- Treemap: Likes & Comments by Category ---------
+        st.markdown("### 🍃 Engagement Treemap (Likes by Category)")
+        tm_year = st.selectbox("Filter Treemap Year", sorted(df["Year"].dropna().unique()), key='tm_year')
+        tm_df = df[df["Year"] == tm_year].groupby("Category")[["Likes","Comments"]].sum().reset_index()
+        treemap_metric = st.radio("Treemap Metric", ["Likes","Comments"])
+        fig = px.treemap(tm_df, path=["Category"], values=treemap_metric,
+                         color=treemap_metric, color_continuous_scale=red_palette,
+                         title=f"{treemap_metric} by Category")
         st.plotly_chart(fig, use_container_width=True)
 
-        # 9. Heatmap of Views by Hour & Day
-        st.markdown("### 🕒 Heatmap: Views by Hour & Day")
-        pivot = df.pivot_table(index="DayOfWeek", columns="Hour", values="Views", aggfunc="mean").fillna(0)
-        fig = px.imshow(pivot, color_continuous_scale=red_palette, 
-                        title="Optimal Publishing Time (Avg Views)")
+        # --------- Radar Chart: Top 5 Videos Multi-Metrics ---------
+        st.markdown("### 🕸 Radar Chart: Multi-Metric Comparison of Best Videos")
+        top_count = st.slider("Number of Best Videos to Compare", 3, 10, 5)
+        best_videos = df.sort_values("CTR_Proxy", ascending=False).head(top_count)
+        radar_metrics = ["Views", "Likes", "Comments", "DurationMin", "CTR_Proxy"]
+        categories = best_videos["Title"]
+        radar_data = []
+        for m in radar_metrics:
+            radar_data.append(best_videos[m].values)
+        fig = go.Figure()
+        for i, row in best_videos.iterrows():
+            fig.add_trace(go.Scatterpolar(
+                r=[row[met] for met in radar_metrics],
+                theta=radar_metrics,
+                fill='toself',
+                name=row["Title"]
+            ))
+        fig.update_layout(
+            polar=dict(bgcolor="#111", radialaxis=dict(visible=True, showticklabels=True)),
+            showlegend=True,
+            template=None,
+            legend=dict(font=dict(color="white")),
+            paper_bgcolor="#000",
+            title="Radar: Top Videos by Multiple Metrics"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        # --------- Parallel Coordinates: Advanced Multi-Variable ---------
+        st.markdown("### 🛣️ Parallel Coordinates: Multi-Variable Performance across Videos")
+        pc_metrics = ["Views", "Likes", "Comments", "DurationMin", "CTR_Proxy"]
+        pc_n = st.slider("Number of Videos (Parallel Coordinates)", 5, 50, 20)
+        pc_df = df.sort_values("Views", ascending=False).head(pc_n)
+        # Need numeric columns only, so ensure all pc_metrics exist and are numeric
+        fig = px.parallel_coordinates(
+            pc_df, dimensions=pc_metrics, color="Views",
+            color_continuous_scale=red_palette, labels={m:m for m in pc_metrics},
+            title="Parallel Coordinates: Video Performance"
+        )
         st.plotly_chart(fig, use_container_width=True)
