@@ -1,94 +1,56 @@
 import streamlit as st
 from googleapiclient.discovery import build
 import pandas as pd
+import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+import matplotlib.pyplot as plt
 import isodate
 
-# -------------------------------
-# CONFIG & THEME
-# -------------------------------
 API_KEY = "AIzaSyDz8r5kvSnlkdQTyeEMS4hn0EMpXfUV1ig"
 
 st.set_page_config(
-    page_title="YouTube Advanced Analytics",
+    page_title="YouTube Advanced Dashboard",
     layout="wide",
-    page_icon=None,
-    initial_sidebar_state="collapsed"
+    page_icon="🎥",
+    initial_sidebar_state="auto"
 )
 
+# --- Custom Theme ---
 st.markdown("""
     <style>
-    /* Background and base text */
-    .stApp {
-        background-color: #000 !important;
-        color: #fff !important;
-        padding: 0.5rem 1rem;
-    }
-    /* Card wrapper */
-    .card {
-        background-color: #222222;
-        border-radius: 10px;
-        padding: 0.75rem 1rem;
-        margin: 0.75rem 0.75rem 1rem 0.75rem;
-        box-shadow: 0 4px 10px rgba(215,0,0,0.4);
-        min-height: 320px;
-        color: white !important;
-    }
-    /* Heading style inside cards */
-    .card h3 {
-        margin-top: 0;
-        margin-bottom: 0.8rem;
-        color: #ff0000 !important;
-        font-weight: 700;
-        font-size: 1.3rem;
-    }
-    /* Filter label color */
-    label[for] {
-        color: white !important;
-        font-size: 0.85rem;
-        font-weight: 600;
-    }
-    /* Streamlit selectbox and slider adjustments inside cards */
-    .stSelectbox > div > div > div, .stSlider > div > div {
-        color: black !important;
-        font-weight: 600;
-    }
-    /* Reduce spacing of metrics */
-    .stMetric {
-        padding-top: 0.2rem;
-        padding-bottom: 0.2rem;
-    }
-    /* Plotly text inside charts */
-    .main-svg text, .main-svg .legend text {
-        fill: white !important;
-    }
-    /* Make charts backgrounds transparent dark */
-    .js-plotly-plot {
-        background-color: #222222 !important;
-    }
-    /* Align charts spacing */
-    .block-container {
-        max-width: 1280px;
-        padding-left: 0.75rem;
-        padding-right: 0.75rem;
-    }
+    .stApp { background-color: #111 !important; }
+    div[data-testid="stMetricValue"], div[data-testid="stMetricLabel"] { color: #fff !important; }
+    h1, h2, h3, h4, h5, h6, .css-1v0mbdj, .css-1cpxqw2, .css-18ni7ap { color: #fff !important; }
+    .stTable, .stDataFrame, .stMarkdown, .stCaption { color: #fff !important; }
+    .stPlotlyChart { background-color: #222 !important;}
+    [data-testid="stSidebar"] { background-color: #1B1B1B !important; }
+    .css-1dp5vir { background-color: #111 !important; }
     </style>
 """, unsafe_allow_html=True)
 
+sidebar = st.sidebar
+sidebar.title("Channel Insights & Filters")
+channel_id = sidebar.text_input("YouTube Channel ID", help="Paste your Channel ID here")
+date_filter = sidebar.checkbox("Enable Date Range Filter")
+category_filter = sidebar.multiselect(
+    "Filter by category", 
+    ["Film", "Autos", "Music", "Sports", "Gaming", "Comedy", "Entertainment", "News", "Howto", "Education", "Science", "Other"], 
+    default=["Film", "Autos", "Music", "Sports", "Gaming", "Comedy", "Entertainment", "News", "Howto", "Education", "Science", "Other"]
+)
+min_views = sidebar.number_input("Minimum Views (global filter)", min_value=0, value=0, step=100)
 
-# -------------------------------
-# YOUTUBE API CLIENT & CACHE
-# -------------------------------
 def get_youtube_client():
     return build("youtube", "v3", developerKey=API_KEY)
 
 @st.cache_data(ttl=1800)
 def fetch_channel(channel_id):
     yt = get_youtube_client()
-    res = yt.channels().list(part="snippet,statistics,contentDetails", id=channel_id).execute()
-    return res["items"][0] if res.get("items") else None
+    req = yt.channels().list(part="snippet,statistics,contentDetails", id=channel_id)
+    res = req.execute()
+    if res["items"]:
+        return res["items"][0]
+    else:
+        return None
 
 @st.cache_data(ttl=1800)
 def fetch_all_videos(uploads_playlist_id, max_results=300):
@@ -96,41 +58,46 @@ def fetch_all_videos(uploads_playlist_id, max_results=300):
     videos = []
     nextPageToken = None
     while len(videos) < max_results:
-        result = yt.playlistItems().list(
+        req = yt.playlistItems().list(
             part="snippet,contentDetails",
             playlistId=uploads_playlist_id,
             maxResults=min(50, max_results - len(videos)),
             pageToken=nextPageToken
-        ).execute()
-        videos.extend(result.get("items", []))
-        nextPageToken = result.get("nextPageToken")
+        )
+        res = req.execute()
+        videos += res["items"]
+        nextPageToken = res.get("nextPageToken")
         if not nextPageToken:
             break
     return [item["contentDetails"]["videoId"] for item in videos]
 
 @st.cache_data(ttl=1800)
 def fetch_video_details(video_ids):
+    if not video_ids: return pd.DataFrame()
     yt = get_youtube_client()
-    videos_data = []
-    for i in range(0, len(video_ids), 50):
-        res = yt.videos().list(
+    all_video = []
+    for start in range(0, len(video_ids), 50):
+        req = yt.videos().list(
             part="snippet,statistics,contentDetails",
-            id=",".join(video_ids[i:i+50])
-        ).execute()
-        for item in res.get("items", []):
+            id=",".join(video_ids[start:start+50])
+        )
+        res = req.execute()
+        for item in res["items"]:
             stats = item.get("statistics", {})
             snippet = item.get("snippet", {})
             content = item.get("contentDetails", {})
-            videos_data.append({
-                "id": item.get("id"),
-                "title": snippet.get("title", ""),
-                "published_at": snippet.get("publishedAt", ""),
-                "views": int(stats.get("viewCount", 0)),
-                "likes": int(stats.get("likeCount", 0)),
-                "comments": int(stats.get("commentCount", 0)),
-                "duration": content.get("duration", "")
+            all_video.append({
+                "Video ID": item["id"],
+                "Title": snippet.get("title", ""),
+                "PublishedAt": snippet.get("publishedAt", ""),
+                "Views": int(stats.get("viewCount", 0)),
+                "Likes": int(stats.get("likeCount", 0)),
+                "Comments": int(stats.get("commentCount", 0)),
+                "Tags": snippet.get("tags", []),
+                "CategoryId": snippet.get("categoryId", ""),
+                "Duration": content.get("duration", "")
             })
-    return pd.DataFrame(videos_data)
+    return pd.DataFrame(all_video)
 
 @st.cache_data(ttl=1800)
 def fetch_playlists(channel_id):
@@ -138,276 +105,179 @@ def fetch_playlists(channel_id):
     playlists = []
     nextPageToken = None
     while True:
-        res = yt.playlists().list(
-            part="snippet,contentDetails",
-            channelId=channel_id,
-            maxResults=50,
-            pageToken=nextPageToken
-        ).execute()
-        playlists.extend(res.get("items", []))
+        req = yt.playlists().list(part="snippet,contentDetails", channelId=channel_id, maxResults=50, pageToken=nextPageToken)
+        res = req.execute()
+        playlists.extend(res["items"])
         nextPageToken = res.get("nextPageToken")
         if not nextPageToken:
             break
     return playlists
 
-def parse_duration(duration_iso):
+def parse_duration(duration):
     try:
-        td = isodate.parse_duration(duration_iso)
+        td = isodate.parse_duration(duration)
         return td.total_seconds() / 60  # minutes
     except:
         return 0
 
-# -------------------------------
-# MAIN
-# -------------------------------
-st.title("YouTube Advanced Analytics Dashboard")
-
-channel_id = st.text_input("Enter YouTube Channel ID")
+category_map = {
+    "1": "Film", "2": "Autos", "10": "Music", "17": "Sports", "20": "Gaming", "23": "Comedy",
+    "24": "Entertainment", "25": "News", "26": "Howto", "27": "Education", "28": "Science"
+}
 
 if channel_id:
     channel = fetch_channel(channel_id)
     if not channel:
-        st.error("Channel not found or invalid Channel ID.")
+        st.error("Channel not found. Check your Channel ID and quota.")
     else:
-        uploads_playlist_id = channel["contentDetails"]["relatedPlaylists"]["uploads"]
-        video_ids = fetch_all_videos(uploads_playlist_id)
-        df = fetch_video_details(video_ids)
+        uploads_pid = channel["contentDetails"]["relatedPlaylists"]["uploads"]
+        video_ids = fetch_all_videos(uploads_pid, max_results=300)
+        df_vid = fetch_video_details(video_ids)
         playlists = fetch_playlists(channel_id)
 
-        if df.empty:
-            st.warning("No video data available for this channel.")
-            st.stop()
-
         # Preprocessing
-        df["published_at"] = pd.to_datetime(df["published_at"], errors="coerce")
-        df["duration_min"] = df["duration"].apply(parse_duration)
-        df["year"] = df["published_at"].dt.year
-        df["month"] = df["published_at"].dt.to_period('M').astype(str)
-        df["day_of_week"] = df["published_at"].dt.day_name()
-        df["engagement"] = (df["likes"] + df["comments"]) / df["views"].replace(0,1)
-        df = df[df["views"] > 0]  # Ignore videos with zero views for engagement insights
+        df_vid["DurationMin"] = df_vid["Duration"].map(parse_duration)
+        df_vid["PublishedDate"] = pd.to_datetime(df_vid["PublishedAt"], errors='coerce')
+        df_vid["Month"] = df_vid["PublishedDate"].dt.strftime("%Y-%m")
+        df_vid["DayOfWeek"] = df_vid["PublishedDate"].dt.day_name()
+        df_vid["Year"] = df_vid["PublishedDate"].dt.year
+        df_vid["Day"] = df_vid["PublishedDate"].dt.day
+        df_vid["Hour"] = df_vid["PublishedDate"].dt.hour
+        df_vid["Category"] = df_vid["CategoryId"].map(lambda x: category_map.get(x, "Other"))
 
-        # Metrics at top in card style
-        st.markdown(f"""
-            <div class="card" style="display:flex; justify-content:space-around; flex-wrap: wrap; gap:1rem;">
-                <div style="min-width:180px;">
-                    <h3>Subscribers</h3>
-                    <p style="font-size:1.5rem; color:#ff0000;">{int(channel['statistics']['subscriberCount']):,}</p>
-                </div>
-                <div style="min-width:180px;">
-                    <h3>Total Views</h3>
-                    <p style="font-size:1.5rem; color:#ff0000;">{int(channel['statistics']['viewCount']):,}</p>
-                </div>
-                <div style="min-width:180px;">
-                    <h3>Total Videos</h3>
-                    <p style="font-size:1.5rem; color:#ff0000;">{int(channel['statistics']['videoCount']):,}</p>
-                </div>
-                <div style="min-width:180px;">
-                    <h3>Total Playlists</h3>
-                    <p style="font-size:1.5rem; color:#ff0000;">{len(playlists):,}</p>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+        if date_filter and not df_vid.empty:
+            min_date, max_date = df_vid["PublishedDate"].min().date(), df_vid["PublishedDate"].max().date()
+            start_date = sidebar.date_input("Start Date", min_value=min_date, max_value=max_date, value=min_date)
+            end_date = sidebar.date_input("End Date", min_value=min_date, max_value=max_date, value=max_date)
+            df_vid = df_vid[(df_vid["PublishedDate"].dt.date >= start_date) & (df_vid["PublishedDate"].dt.date <= end_date)]
 
-        # Helper for rendering cards with dynamic width
-        def render_card(title: str, filter_widget, plot_func):
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown(f"<h3>{title}</h3>", unsafe_allow_html=True)
-            filter_widget()
-            plot_func()
-            st.markdown('</div>', unsafe_allow_html=True)
+        # Apply global filters
+        df_vid = df_vid[df_vid["Category"].isin(category_filter)]
+        df_vid = df_vid[df_vid["Views"] >= min_views]
 
-
-        # 1. Upload Frequency Calendar-like Heatmap (Calendar heat with less clutter)
-        def filter_upload_calendar():
-            years = sorted(df["year"].dropna().unique())
-            year_selected = st.selectbox("Select Year", years, key="upload_year_filter")
-            st.session_state.upload_year = year_selected
-
-        def plot_upload_calendar():
-            year = st.session_state.get("upload_year", df["year"].min())
-            df_year = df[df["year"] == year]
-            # Group by date counting uploads
-            uploads_per_date = df_year.groupby(df_year["published_at"].dt.date).size()
-            if uploads_per_date.empty:
-                st.info("No uploads in selected year.")
-                return
-
-            dates = pd.date_range(start=pd.Timestamp(f"{year}-01-01"), end=pd.Timestamp(f"{year}-12-31"))
-            counts = [uploads_per_date.get(d.date(), 0) for d in dates]
-            # Plot heatmap: Using scatter with colored square markers to emulate calendar heat
-            fig = go.Figure(data=go.Heatmap(
-                z=counts,
-                x=dates.strftime("%b-%d"),
-                y=["Uploads"],
-                colorscale=[[0, '#9b0000'], [1, '#ff0000']],
-                showscale=False
-            ))
-
-            fig.update_layout(
-                height=120,
-                margin=dict(l=10, r=10, t=30, b=10),
-                xaxis=dict(tickangle=45, showgrid=False, zeroline=False),
-                yaxis=dict(showticklabels=False)
-            )
+        st.markdown(f"# Insights for: **{channel['snippet']['title']}**")
+        st.markdown("## Channel Overview")
+        cards = st.columns(5)
+        with cards[0]:
+            st.image(channel["snippet"]["thumbnails"]["high"]["url"], width=80)
+        with cards[1]:
+            st.metric("Subscribers", f"{int(channel['statistics']['subscriberCount']):,}")
+        with cards[2]:
+            st.metric("Total Views", f"{int(channel['statistics']['viewCount']):,}")
+        with cards[3]:
+            st.metric("Total Videos", f"{int(channel['statistics']['videoCount']):,}")
+        if playlists:
+            with cards[4]:
+                st.metric("Total Playlists", f"{len(playlists):,}")
+        st.markdown(f"**Channel Description:** {channel['snippet'].get('description','No description')}")
+        if not df_vid.empty:
+            st.markdown("Uploads Per Month")
+            up_month = df_vid["Month"].value_counts().sort_index()
+            fig = px.bar(x=up_month.index, y=up_month.values, labels={'x':"Month",'y':'Uploads'}, color=up_month.values, color_continuous_scale='reds', title="Uploads per Month")
             st.plotly_chart(fig, use_container_width=True)
 
-        # 2. Views Growth Area Chart with filter on year range
-        def filter_views_growth():
-            years = sorted(df["year"].dropna().unique())
-            yr_range = st.select_slider("Year Range", options=years, value=(years[0], years[-1]), key="view_growth_years")
-            st.session_state.view_growth_years = yr_range
-
-        def plot_views_growth():
-            yr_min, yr_max = st.session_state.get("view_growth_years", (df["year"].min(), df["year"].max()))
-            filt = (df["year"] >= yr_min) & (df["year"] <= yr_max)
-            df_filt = df[filt].copy()
-            df_filt["month"] = df_filt["published_at"].dt.to_period("M").astype(str)
-            agg = df_filt.groupby("month")["views"].sum().reset_index()
-            agg["cumulative_views"] = agg["views"].cumsum()
-            fig = px.area(agg, x="month", y="cumulative_views",
-                          labels={"month": "Month", "cumulative_views": "Cumulative Views"},
-                          color_discrete_sequence=["#d70000"])
-            fig.update_layout(margin=dict(t=30,l=20,r=20,b=20),
-                              plot_bgcolor="#222", paper_bgcolor="#222",
-                              font_color="white")
+            st.markdown("Top Videos by Views")
+            top_vids = df_vid.sort_values("Views", ascending=False).head(10)
+            fig = px.bar(top_vids, x="Views", y="Title", orientation='h', color="Views", color_continuous_scale='reds', title="Top Videos by Views")
             st.plotly_chart(fig, use_container_width=True)
 
-        # 3. Engagement Over Time Line Chart by Month (Likes+Comments / Views)
-        def filter_engagement_over_time():
-            nb_points = st.slider("Months to show", min_value=3, max_value=24, value=12, key="engage_month_count")
-
-        def plot_engagement_over_time():
-            nb_points = st.session_state.get("engage_month_count", 12)
-            df["month"] = df["published_at"].dt.to_period("M").astype(str)
-            df_group = df.groupby("month").agg({
-                "likes": "sum",
-                "comments": "sum",
-                "views": "sum"
-            }).tail(nb_points).reset_index()
-            df_group["engagement_rate"] = (df_group["likes"] + df_group["comments"]) / df_group["views"].replace(0,1)
-
-            fig = px.line(df_group, x="month", y="engagement_rate",
-                          labels={"month":"Month", "engagement_rate":"Engagement Rate"},
-                          color_discrete_sequence=["#c60000"])
-            fig.update_layout(margin=dict(t=30,l=20,r=20,b=20),
-                              plot_bgcolor="#222", paper_bgcolor="#222",
-                              font_color="white",
-                              yaxis_tickformat=".2%")
+            st.markdown("Top Videos by Likes")
+            top_likes = df_vid.sort_values("Likes", ascending=False).head(10)
+            fig = px.bar(top_likes, x="Title", y="Likes", color="Likes", color_continuous_scale='reds', title="Top Videos by Likes")
             st.plotly_chart(fig, use_container_width=True)
 
-        # 4. Video Duration Distribution (Violin Plot)
-        def filter_duration_dist():
-            yr = st.selectbox("Year for Duration Dist.", sorted(df["year"].unique()), key="duration_year")
-
-        def plot_duration_dist():
-            yr = st.session_state.get("duration_year", df["year"].min())
-            dfd = df[df["year"] == yr]
-            if dfd.empty:
-                st.info("No data available for the selected year.")
-                return
-            fig = px.violin(dfd, y="duration_min",
-                            points="all",
-                            labels={"duration_min": "Duration (min)"}, color_discrete_sequence=["#b70000"])
-            fig.update_layout(margin=dict(t=30,l=20,r=20,b=20),
-                              plot_bgcolor="#222", paper_bgcolor="#222",
-                              font_color="white")
+            st.markdown("Views & Likes Over Time")
+            grouped = df_vid.groupby("Month")[["Views", "Likes"]].sum().reset_index()
+            fig = px.line(grouped, x="Month", y=["Views", "Likes"], markers=True, color_discrete_sequence=['firebrick', 'indianred'])
             st.plotly_chart(fig, use_container_width=True)
 
-        # 5. Top Commented Videos (Sorted Table with paging)
-        def filter_top_comments():
-            n = st.slider("Number of Top Videos", min_value=5, max_value=30, value=10, key="top_comments_n")
+            # Advanced Replacement: Heatmap of Likes by Hour and Day
+            st.markdown("Heatmap: Likes by Hour and Day")
+            likes_heatmap_data = df_vid.groupby(["DayOfWeek", "Hour"])["Likes"].sum().unstack(fill_value=0)
+            hour_col, chart_col = st.columns([1,5])
+            with hour_col:
+                selected_hour = st.selectbox("Filter Hour", sorted(df_vid["Hour"].unique()), key="likes_heat_hour")
+            with chart_col:
+                likes_filtered = likes_heatmap_data.loc[:, selected_hour:selected_hour]
+                fig = px.imshow(likes_filtered, color_continuous_scale="reds", title=f"Likes Heatmap (Hour={selected_hour})")
+                st.plotly_chart(fig, use_container_width=True)
 
-        def plot_top_comments():
-            n = st.session_state.get("top_comments_n", 10)
-            top_comments = df.sort_values("comments", ascending=False).head(n)
-            st.dataframe(top_comments[["title", "comments", "views", "likes", "duration_min", "published_at"]].rename(columns={
-                "title":"Title", "comments":"Comments", "views":"Views", "likes":"Likes",
-                "duration_min":"Duration (min)", "published_at":"Published At"
-            }), height=320)
-
-        # 6. Video Publishing Hour Preference Pie Chart
-        def filter_publish_hour():
-            days = sorted(df["day_of_week"].unique())
-            day = st.selectbox("Select Day for Publishing Hour", days, key="publish_day_filter")
-
-        def plot_publish_hour():
-            day = st.session_state.get("publish_day_filter", df["day_of_week"].iloc[0])
-            dfd = df[df["day_of_week"] == day]
-            if dfd.empty:
-                st.info("No videos published on this day.")
-                return
-            dfd["hour"] = dfd["published_at"].dt.hour
-            counts = dfd["hour"].value_counts().sort_index()
-
-            fig = px.pie(values=counts.values, names=counts.index,
-                         color_discrete_sequence=custom_reds,
-                         hole=0.4)
-            fig.update_layout(title=f"Publishing Hours on {day}",
-                              margin=dict(t=40,b=20,l=20,r=20),
-                              font_color="white",
-                              plot_bgcolor="#222", paper_bgcolor="#222")
+            # Advanced Replacement: Category sunburst by comments
+            st.markdown("Sunburst of Comments by Category/Video")
+            filter_cat = st.selectbox("Filter category", sorted(df_vid["Category"].unique()), key="sunburst_cat")
+            sunburst_df = df_vid[df_vid["Category"] == filter_cat][["Category", "Title", "Comments"]]
+            fig = px.sunburst(sunburst_df, path=["Category", "Title"], values="Comments", color="Comments", color_continuous_scale="reds", title="Comments Sunburst")
             st.plotly_chart(fig, use_container_width=True)
 
-        # 7. Likes vs. Views - Density Contour Plot (Advanced Insight)
-        def filter_density_scatter():
-            min_views = st.number_input("Min Views for Scatter", min_value=0, max_value=int(df["views"].max()), value=1000, step=500, key="min_views_scatter")
+            # Advanced Replacement: Histogram views by selected year
+            st.markdown("Histogram of Views by Year")
+            year_col, chart_col = st.columns([1,5])
+            with year_col:
+                select_year = st.selectbox("Choose year", sorted(df_vid["Year"].unique()), key="hist_year")
+            views_year_df = df_vid[df_vid["Year"] == select_year]
+            with chart_col:
+                fig = px.histogram(views_year_df, x="Views", nbins=15, color_discrete_sequence=['red'], title=f"Views Distribution ({select_year})")
+                st.plotly_chart(fig, use_container_width=True)
 
-        def plot_density_scatter():
-            thresh = st.session_state.get("min_views_scatter", 1000)
-            dfd = df[df["views"] >= thresh]
-            if dfd.empty:
-                st.info("No videos found with selected minimum views.")
-                return
-            fig = px.density_contour(dfd, x="views", y="likes", nbinsx=30, nbinsy=30,
-                                     color_discrete_sequence=["#ff0000"])
-            fig.update_traces(contours_coloring="fill", contours_showlabels=True)
-            fig.update_layout(
-                xaxis_title="Views",
-                yaxis_title="Likes",
-                plot_bgcolor="#222", paper_bgcolor="#222",
-                font_color="white",
-                margin=dict(t=40,l=40,b=40,r=40))
+            # Advanced Replacement: Scatterplot Likes vs Duration for selected category
+            st.markdown("Scatterplot Likes vs Duration (Category)")
+            cat_col, chart_col = st.columns([1,5])
+            with cat_col:
+                selected_cat = st.selectbox("Scatter Category", sorted(df_vid["Category"].unique()), key="scatter_likes_cat")
+            filtered_df = df_vid[df_vid["Category"] == selected_cat]
+            with chart_col:
+                fig = px.scatter(filtered_df, x="DurationMin", y="Likes", color="Likes", color_continuous_scale='reds', size="Comments", hover_name="Title", title=f"Likes vs Duration ({selected_cat})")
+                st.plotly_chart(fig, use_container_width=True)
+
+            # Advanced Replacement: Line chart for Likes Cumulative over Date, with filter for min likes
+            st.markdown("Likes Cumulative Growth (Min Likes Filter)")
+            likes_min_col, chart_col = st.columns([1,5])
+            with likes_min_col:
+                min_likes_for_line = st.slider("Minimum Likes", min_value=int(df_vid["Likes"].min()), max_value=int(df_vid["Likes"].max()), value=0, key="min_likes_cum")
+            likes_cum_df = df_vid[df_vid["Likes"] >= min_likes_for_line].sort_values("PublishedDate")
+            likes_cum_df["CumulativeLikes"] = likes_cum_df["Likes"].cumsum()
+            with chart_col:
+                fig = px.line(likes_cum_df, x="PublishedDate", y="CumulativeLikes", color_discrete_sequence=["red"], title="Cumulative Likes Growth")
+                st.plotly_chart(fig, use_container_width=True)
+
+            # Playlists Table
+            st.markdown("Playlists")
+            pl = pd.DataFrame([{
+                "Title": p["snippet"]["title"],
+                "VideoCount": p["contentDetails"].get("itemCount", "N/A")
+            } for p in playlists])
+            st.dataframe(pl)
+
+            # Most Engaged Videos Table
+            st.markdown("Most Engaged Videos")
+            most_engaged = df_vid.assign(TotalEngagement=lambda x: x["Likes"] + x["Comments"])
+            st.dataframe(most_engaged.sort_values("TotalEngagement", ascending=False)[
+                ["Title", "TotalEngagement", "Likes", "Comments", "Views", "PublishedDate"]
+            ].head(10))
+
+            # Cumulative Views Growth
+            st.markdown("Cumulative Views Growth Over Time")
+            growth_df = df_vid.sort_values("PublishedDate")
+            growth_df["CumulativeViews"] = growth_df["Views"].cumsum()
+            fig = px.area(growth_df, x="PublishedDate", y="CumulativeViews", color_discrete_sequence=["red"], title="Cumulative Views Growth Over Time")
             st.plotly_chart(fig, use_container_width=True)
 
-        # 8. Daily Average Views Timeline (Line with Rolling Mean)
-        def filter_avg_views():
-            window = st.slider("Rolling window (days)", 1, 30, 7, key="rolling_window")
+            # Videos per Day (Calendar-style scatter)
+            st.markdown("Videos per Day")
+            calendar_df = df_vid.groupby(df_vid["PublishedDate"].dt.date).size().reset_index(name="Uploads")
+            calendar_col, chart_col = st.columns([1,5])
+            with calendar_col:
+                min_uploads = st.slider("Min uploads/day", min_value=1, max_value=int(calendar_df["Uploads"].max()), value=1, key="min_uploads_cal")
+            calendar_df = calendar_df[calendar_df["Uploads"] >= min_uploads]
+            with chart_col:
+                fig = px.scatter(calendar_df, x="PublishedDate", y="Uploads", color="Uploads", color_continuous_scale="reds", title="Uploads per Day")
+                st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("No video data found for this channel.")
 
-        def plot_avg_views():
-            window = st.session_state.get("rolling_window", 7)
-            daily_views = df.groupby(df["published_at"].dt.date)["views"].sum().reset_index()
-            daily_views["rolling_avg_views"] = daily_views["views"].rolling(window).mean()
-            fig = px.line(daily_views, x="published_at", y="rolling_avg_views",
-                          labels={"published_at": "Date", "rolling_avg_views": f"{window}-Day Rolling Avg Views"},
-                          color_discrete_sequence=["#d70000"])
-            fig.update_layout(plot_bgcolor="#222", paper_bgcolor="#222", font_color="white",
-                              margin=dict(t=30,l=30,r=30,b=30))
-            st.plotly_chart(fig, use_container_width=True)
-
-
-        # Layout: Render cards in rows with 2 or 3 cards as space allows, with spacing.
-        # Use Streamlit container and columns dynamically for layout and spacing
-        all_cards = [
-            ("Uploads Per Year Calendar Heatmap", filter_upload_calendar, plot_upload_calendar),
-            ("Views Growth Area Chart", filter_views_growth, plot_views_growth),
-            ("Engagement Rate Over Time", filter_engagement_over_time, plot_engagement_over_time),
-            ("Video Duration Distribution", filter_duration_dist, plot_duration_dist),
-            ("Top Commented Videos", filter_top_comments, plot_top_comments),
-            ("Publishing Hour by Day Pie Chart", filter_publish_hour, plot_publish_hour),
-            ("Likes vs Views Density Contour", filter_density_scatter, plot_density_scatter),
-            ("Daily Rolling Avg Views Timeline", filter_avg_views, plot_avg_views)
-        ]
-
-        # Responsively choose 2 or 3 per row depending on screen width (approximation)
-        # Here, fixed 2 per row for neatness and card size minimization
-        cols_per_row = 2
-        for i in range(0, len(all_cards), cols_per_row):
-            row_cards = all_cards[i:i+cols_per_row]
-            cols = st.columns(cols_per_row, gap="large")
-            for col, (title, filter_w, plot_f) in zip(cols, row_cards):
-                with col:
-                    render_card(title, filter_w, plot_f)
-
+    sidebar.caption("YouTube style • Red charts • Advanced insights • Filters in sidebar")
 else:
-    st.info("Enter a valid YouTube Channel ID to load analytics.")
+    st.info("Enter a valid YouTube Channel ID to see insights.")
+
+
+
